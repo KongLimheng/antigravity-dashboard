@@ -1,21 +1,32 @@
-import Database from 'better-sqlite3';
-import { join } from 'path';
-import { homedir } from 'os';
-import { mkdirSync, existsSync } from 'fs';
-import { ApiCall, AccountStats, ModelStats, CombinedLogEntry, LogFilters, AccountBurnRate, TimelineSlice } from './types';
+import Database from "better-sqlite3";
+import { existsSync, mkdirSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+import {
+  AccountStats,
+  ApiCall,
+  CombinedLogEntry,
+  LogFilters,
+  ModelStats,
+  TimelineSlice,
+} from "./types";
 
 export class UsageMonitor {
-
   private db: Database.Database;
   private dbPath: string;
 
   constructor(customDbPath?: string) {
-    const configDir = join(homedir(), '.config', 'opencode', 'antigravity-dashboard');
+    const configDir = join(
+      homedir(),
+      ".config",
+      "opencode",
+      "antigravity-dashboard",
+    );
     if (!existsSync(configDir)) {
       mkdirSync(configDir, { recursive: true });
     }
 
-    this.dbPath = customDbPath || join(configDir, 'usage.db');
+    this.dbPath = customDbPath || join(configDir, "usage.db");
     this.db = new Database(this.dbPath);
     this.initDatabase();
   }
@@ -73,15 +84,17 @@ export class UsageMonitor {
       CREATE INDEX IF NOT EXISTS idx_qs_family_time ON quota_snapshots(model_family, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_qs_email ON quota_snapshots(account_email);
     `);
-    
+
     this.migrateSchema();
   }
 
   private migrateSchema() {
-    const hasSourceColumn = this.db.prepare(
-      `SELECT COUNT(*) as count FROM pragma_table_info('api_calls') WHERE name='source'`
-    ).get() as { count: number };
-    
+    const hasSourceColumn = this.db
+      .prepare(
+        `SELECT COUNT(*) as count FROM pragma_table_info('api_calls') WHERE name='source'`,
+      )
+      .get() as { count: number };
+
     if (hasSourceColumn.count === 0) {
       this.db.exec(`
         ALTER TABLE api_calls ADD COLUMN source TEXT DEFAULT 'internal';
@@ -103,17 +116,31 @@ export class UsageMonitor {
     `);
 
     const info = stmt.run(
-      call.timestamp, call.account_email, call.model, call.endpoint,
-      call.request_tokens || null, call.response_tokens || null,
-      call.total_tokens || null, call.duration_ms, call.status,
-      call.error_message || null, call.http_status || null,
-      call.source || 'internal', call.stream ? 1 : 0, call.client_ip || null
+      call.timestamp,
+      call.account_email,
+      call.model,
+      call.endpoint,
+      call.request_tokens || null,
+      call.response_tokens || null,
+      call.total_tokens || null,
+      call.duration_ms,
+      call.status,
+      call.error_message || null,
+      call.http_status || null,
+      call.source || "internal",
+      call.stream ? 1 : 0,
+      call.client_ip || null,
     );
 
     return info.lastInsertRowid as number;
   }
 
-  updateAccountStatus(email: string, isRateLimited: boolean, rateLimitReset?: number, lastError?: string) {
+  updateAccountStatus(
+    email: string,
+    isRateLimited: boolean,
+    rateLimitReset?: number,
+    lastError?: string,
+  ) {
     const stmt = this.db.prepare(`
       INSERT INTO account_status (email, is_rate_limited, rate_limit_reset, last_error, last_updated)
       VALUES (?, ?, ?, ?, ?)
@@ -124,7 +151,13 @@ export class UsageMonitor {
         last_updated = excluded.last_updated
     `);
 
-    stmt.run(email, isRateLimited ? 1 : 0, rateLimitReset || null, lastError || null, Date.now());
+    stmt.run(
+      email,
+      isRateLimited ? 1 : 0,
+      rateLimitReset || null,
+      lastError || null,
+      Date.now(),
+    );
   }
 
   logSessionEvent(eventType: string, accountEmail?: string, details?: any) {
@@ -133,7 +166,12 @@ export class UsageMonitor {
       VALUES (?, ?, ?, ?)
     `);
 
-    stmt.run(Date.now(), eventType, accountEmail || null, details ? JSON.stringify(details) : null);
+    stmt.run(
+      Date.now(),
+      eventType,
+      accountEmail || null,
+      details ? JSON.stringify(details) : null,
+    );
   }
 
   getAccountStats(burnWindowMs: number = 3600000): AccountStats[] {
@@ -197,7 +235,13 @@ export class UsageMonitor {
     return stmt.all(limit) as ApiCall[];
   }
 
-  getProxyStats(): { total: number; successful: number; failed: number; byModel: Record<string, number>; byAccount: Record<string, number> } {
+  getProxyStats(): {
+    total: number;
+    successful: number;
+    failed: number;
+    byModel: Record<string, number>;
+    byAccount: Record<string, number>;
+  } {
     const statsStmt = this.db.prepare(`
       SELECT 
         COUNT(*) as total,
@@ -205,7 +249,11 @@ export class UsageMonitor {
         SUM(CASE WHEN status != 'success' THEN 1 ELSE 0 END) as failed
       FROM api_calls WHERE source = 'proxy'
     `);
-    const stats = statsStmt.get() as { total: number; successful: number; failed: number };
+    const stats = statsStmt.get() as {
+      total: number;
+      successful: number;
+      failed: number;
+    };
 
     const modelStmt = this.db.prepare(`
       SELECT model, COUNT(*) as count FROM api_calls WHERE source = 'proxy' GROUP BY model
@@ -219,7 +267,10 @@ export class UsageMonitor {
     const accountStmt = this.db.prepare(`
       SELECT account_email, COUNT(*) as count FROM api_calls WHERE source = 'proxy' GROUP BY account_email
     `);
-    const accountRows = accountStmt.all() as { account_email: string; count: number }[];
+    const accountRows = accountStmt.all() as {
+      account_email: string;
+      count: number;
+    }[];
     const byAccount: Record<string, number> = {};
     for (const row of accountRows) {
       byAccount[row.account_email] = row.count;
@@ -271,8 +322,12 @@ export class UsageMonitor {
   clearOldData(daysToKeep: number = 30) {
     const cutoffTime = Date.now() - daysToKeep * 24 * 60 * 60 * 1000;
 
-    const stmtCalls = this.db.prepare('DELETE FROM api_calls WHERE timestamp < ?');
-    const stmtEvents = this.db.prepare('DELETE FROM session_events WHERE timestamp < ?');
+    const stmtCalls = this.db.prepare(
+      "DELETE FROM api_calls WHERE timestamp < ?",
+    );
+    const stmtEvents = this.db.prepare(
+      "DELETE FROM session_events WHERE timestamp < ?",
+    );
 
     const callsDeleted = stmtCalls.run(cutoffTime).changes;
     const eventsDeleted = stmtEvents.run(cutoffTime).changes;
@@ -286,7 +341,7 @@ export class UsageMonitor {
       models: this.getModelStats(),
       recentCalls: this.getRecentCalls(1000),
       sessionEvents: this.getSessionEvents(1000),
-      hourlyStats: this.getHourlyStats(168)
+      hourlyStats: this.getHourlyStats(168),
     };
   }
 
@@ -314,7 +369,7 @@ export class UsageMonitor {
       params.push(filters.model);
     }
 
-    if (filters.type && filters.type !== 'all') {
+    if (filters.type && filters.type !== "all") {
       query += ` AND type = ?`;
       params.push(filters.type);
     }
@@ -337,7 +392,13 @@ export class UsageMonitor {
     if (filters.search) {
       query += ` AND (account_email LIKE ? OR model LIKE ? OR error_message LIKE ? OR details LIKE ? OR event_type LIKE ?)`;
       const searchPattern = `%${filters.search}%`;
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+      params.push(
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+        searchPattern,
+      );
     }
 
     query += ` ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
@@ -372,7 +433,7 @@ export class UsageMonitor {
           call.duration_ms,
           call.status,
           call.error_message || null,
-          call.http_status || null
+          call.http_status || null,
         );
       }
     });
@@ -399,7 +460,7 @@ export class UsageMonitor {
           event.timestamp,
           event.event_type,
           event.account_email || null,
-          event.details || null
+          event.details || null,
         );
       }
     });
@@ -407,9 +468,11 @@ export class UsageMonitor {
     transaction(events);
   }
 
-  getAccountBurnRateDetailed(email: string): { claudeTokens1h: number; geminiTokens1h: number } | null {
+  getAccountBurnRateDetailed(
+    email: string,
+  ): { claudeTokens1h: number; geminiTokens1h: number } | null {
     const oneHourAgo = Date.now() - 3600000;
-    
+
     const query = `
       SELECT 
         SUM(CASE WHEN (model LIKE '%claude%' OR model LIKE '%anthropic%') AND timestamp >= ? THEN total_tokens ELSE 0 END) as claudeTokens1h,
@@ -417,8 +480,10 @@ export class UsageMonitor {
       FROM api_calls
       WHERE account_email = ? AND status = 'success'
     `;
-    
-    const result = this.db.prepare(query).get(oneHourAgo, oneHourAgo, email) as { claudeTokens1h: number; geminiTokens1h: number } | undefined;
+
+    const result = this.db.prepare(query).get(oneHourAgo, oneHourAgo, email) as
+      | { claudeTokens1h: number; geminiTokens1h: number }
+      | undefined;
     return result ?? null;
   }
 
@@ -426,14 +491,14 @@ export class UsageMonitor {
     const now = Date.now();
     const sliceDurationMs = 4.8 * 60 * 60 * 1000; // 5 slices in 24h
     const startTime = now - hours * 60 * 60 * 1000;
-    
+
     // We want 5 slices of 4.8 hours each for the last 24h
     const slices: TimelineSlice[] = [];
-    
+
     for (let i = 0; i < 5; i++) {
-      const sliceStartTime = startTime + (i * sliceDurationMs);
+      const sliceStartTime = startTime + i * sliceDurationMs;
       const sliceEndTime = sliceStartTime + sliceDurationMs;
-      
+
       let query = `
         SELECT 
           SUM(CASE WHEN model LIKE '%claude%' OR model LIKE '%anthropic%' THEN total_tokens ELSE 0 END) as claudeTokens,
@@ -441,15 +506,17 @@ export class UsageMonitor {
         FROM api_calls
         WHERE timestamp >= ? AND timestamp < ? AND status = 'success'
       `;
-      
+
       const params: any[] = [sliceStartTime, sliceEndTime];
       if (email) {
         query += ` AND account_email = ?`;
         params.push(email);
       }
-      
-      const stats = this.db.prepare(query).get(...params) as { claudeTokens: number | null; geminiTokens: number | null } | undefined;
-      
+
+      const stats = this.db.prepare(query).get(...params) as
+        | { claudeTokens: number | null; geminiTokens: number | null }
+        | undefined;
+
       slices.push({
         startTime: sliceStartTime,
         endTime: sliceEndTime,
@@ -457,10 +524,10 @@ export class UsageMonitor {
         geminiTokens: stats?.geminiTokens || 0,
         claudePercentUsed: 0, // Calculated on frontend with quota info
         geminiPercentUsed: 0, // Calculated on frontend with quota info
-        currentSlice: now >= sliceStartTime && now < sliceEndTime
+        currentSlice: now >= sliceStartTime && now < sliceEndTime,
       });
     }
-    
+
     return slices;
   }
 
@@ -469,121 +536,144 @@ export class UsageMonitor {
    * @param quotaPercent Current remaining quota percentage
    * @param family Model family ('claude' or 'gemini')
    */
-  calculateRunwayPrediction(quotaPercent: number, family: 'claude' | 'gemini'): {
-    usageRate: number;  // % per hour
-    runway: string;     // Human-readable runway estimate
+  calculateRunwayPrediction(
+    quotaPercent: number,
+    family: "claude" | "gemini",
+  ): {
+    usageRate: number; // % per hour
+    runway: string; // Human-readable runway estimate
     hoursRemaining: number | null;
   } {
     // Get usage from multiple time windows to calculate rate
     const now = Date.now();
     const oneHourAgo = now - 3600000;
     const threeHoursAgo = now - 3 * 3600000;
-    
-    const familyPattern = family === 'claude' 
-      ? "(model LIKE '%claude%' OR model LIKE '%anthropic%')" 
-      : "model LIKE '%gemini%'";
-    
+
+    const familyPattern =
+      family === "claude"
+        ? "(model LIKE '%claude%' OR model LIKE '%anthropic%')"
+        : "model LIKE '%gemini%'";
+
     // Get token usage over different time windows
     const query1h = `
       SELECT SUM(total_tokens) as tokens
       FROM api_calls
       WHERE ${familyPattern} AND status = 'success' AND timestamp >= ?
     `;
-    
+
     const query3h = `
       SELECT SUM(total_tokens) as tokens
       FROM api_calls
       WHERE ${familyPattern} AND status = 'success' AND timestamp >= ?
     `;
-    
-    const usage1h = this.db.prepare(query1h).get(oneHourAgo) as { tokens: number } | undefined;
-    const usage3h = this.db.prepare(query3h).get(threeHoursAgo) as { tokens: number } | undefined;
-    
+
+    const usage1h = this.db.prepare(query1h).get(oneHourAgo) as
+      | { tokens: number }
+      | undefined;
+    const usage3h = this.db.prepare(query3h).get(threeHoursAgo) as
+      | { tokens: number }
+      | undefined;
+
     const tokens1h = usage1h?.tokens || 0;
     const tokens3h = usage3h?.tokens || 0;
-    
+
     // Calculate average hourly token usage (weighted toward recent)
-    const avgTokensPerHour = tokens3h > 0 
-      ? (tokens1h * 0.6 + (tokens3h / 3) * 0.4)  // Weight recent usage more
-      : tokens1h;
-    
+    const avgTokensPerHour =
+      tokens3h > 0
+        ? tokens1h * 0.6 + (tokens3h / 3) * 0.4 // Weight recent usage more
+        : tokens1h;
+
     // If no usage, return stable prediction
     if (avgTokensPerHour === 0) {
       return {
         usageRate: 0,
-        runway: 'Stable',
-        hoursRemaining: null
+        runway: "Stable",
+        hoursRemaining: null,
       };
     }
-    
+
     // Estimate quota depletion rate
     // Assumption: Google's free tier is roughly 1M tokens per 5-hour window
     // This is a rough estimate - actual quota varies by tier
     const estimatedMaxTokens = 1000000;
     const percentPerHour = (avgTokensPerHour / estimatedMaxTokens) * 100;
-    
+
     // Calculate hours until quota is exhausted
     const hoursRemaining = quotaPercent / percentPerHour;
-    
+
     // Format runway string
     let runway: string;
     if (hoursRemaining <= 0 || quotaPercent <= 0) {
-      runway = 'Exhausted';
+      runway = "Exhausted";
     } else if (hoursRemaining < 1) {
       runway = `~${Math.round(hoursRemaining * 60)}m`;
     } else if (hoursRemaining < 24) {
       runway = `~${Math.round(hoursRemaining)}h`;
-    } else if (hoursRemaining < 168) {  // 7 days
+    } else if (hoursRemaining < 168) {
+      // 7 days
       runway = `~${Math.round(hoursRemaining / 24)}d`;
     } else {
-      runway = '>7d';
+      runway = ">7d";
     }
-    
+
     return {
-      usageRate: Math.round(percentPerHour * 10) / 10,  // Round to 1 decimal
+      usageRate: Math.round(percentPerHour * 10) / 10, // Round to 1 decimal
       runway,
-      hoursRemaining: hoursRemaining > 0 ? hoursRemaining : null
+      hoursRemaining: hoursRemaining > 0 ? hoursRemaining : null,
     };
   }
 
   /**
    * Get runway predictions for all families
    */
-  getAllRunwayPredictions(claudeQuotaPercent: number | null, geminiQuotaPercent: number | null): {
-    claude: { usageRate: number; runway: string; hoursRemaining: number | null } | null;
-    gemini: { usageRate: number; runway: string; hoursRemaining: number | null } | null;
+  getAllRunwayPredictions(
+    claudeQuotaPercent: number | null,
+    geminiQuotaPercent: number | null,
+  ): {
+    claude: {
+      usageRate: number;
+      runway: string;
+      hoursRemaining: number | null;
+    } | null;
+    gemini: {
+      usageRate: number;
+      runway: string;
+      hoursRemaining: number | null;
+    } | null;
     overall: { usageRate: number; runway: string } | null;
   } {
-    const claudePrediction = claudeQuotaPercent !== null 
-      ? this.calculateRunwayPrediction(claudeQuotaPercent, 'claude')
-      : null;
-    
-    const geminiPrediction = geminiQuotaPercent !== null
-      ? this.calculateRunwayPrediction(geminiQuotaPercent, 'gemini')
-      : null;
-    
+    const claudePrediction =
+      claudeQuotaPercent !== null
+        ? this.calculateRunwayPrediction(claudeQuotaPercent, "claude")
+        : null;
+
+    const geminiPrediction =
+      geminiQuotaPercent !== null
+        ? this.calculateRunwayPrediction(geminiQuotaPercent, "gemini")
+        : null;
+
     // Calculate overall (average of both)
     let overall: { usageRate: number; runway: string } | null = null;
     if (claudePrediction || geminiPrediction) {
       const rates = [
         claudePrediction?.usageRate ?? 0,
-        geminiPrediction?.usageRate ?? 0
-      ].filter(r => r > 0);
-      
+        geminiPrediction?.usageRate ?? 0,
+      ].filter((r) => r > 0);
+
       if (rates.length > 0) {
         const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
-        
+
         // Find the shortest runway
         const hours = [
           claudePrediction?.hoursRemaining,
-          geminiPrediction?.hoursRemaining
+          geminiPrediction?.hoursRemaining,
         ].filter((h): h is number => h !== null);
-        
+
         const minHours = hours.length > 0 ? Math.min(...hours) : null;
-        
+
         let runway: string;
         if (minHours === null) {
-          runway = 'Stable';
+          runway = "Stable";
         } else if (minHours < 1) {
           runway = `~${Math.round(minHours * 60)}m`;
         } else if (minHours < 24) {
@@ -591,16 +681,16 @@ export class UsageMonitor {
         } else if (minHours < 168) {
           runway = `~${Math.round(minHours / 24)}d`;
         } else {
-          runway = '>7d';
+          runway = ">7d";
         }
-        
+
         overall = {
           usageRate: Math.round(avgRate * 10) / 10,
-          runway
+          runway,
         };
       }
     }
-    
+
     return { claude: claudePrediction, gemini: geminiPrediction, overall };
   }
 
@@ -611,9 +701,9 @@ export class UsageMonitor {
    */
   recordQuotaSnapshot(
     accountEmail: string,
-    modelFamily: 'claude' | 'gemini',
+    modelFamily: "claude" | "gemini",
     quotaPercent: number,
-    resetTime: number | null
+    resetTime: number | null,
   ): void {
     const stmt = this.db.prepare(`
       INSERT INTO quota_snapshots (timestamp, account_email, model_family, quota_percent, reset_time)
@@ -626,8 +716,8 @@ export class UsageMonitor {
    * Get quota snapshots for a model family within a time range
    */
   getQuotaSnapshots(
-    modelFamily: 'claude' | 'gemini',
-    since: number
+    modelFamily: "claude" | "gemini",
+    since: number,
   ): Array<{ timestamp: number; avgPercent: number; count: number }> {
     // Get snapshots aggregated by 5-minute intervals
     const stmt = this.db.prepare(`
@@ -640,9 +730,13 @@ export class UsageMonitor {
       GROUP BY interval_ts
       ORDER BY interval_ts ASC
     `);
-    
-    const rows = stmt.all(modelFamily, since) as Array<{ interval_ts: number; avg_percent: number; count: number }>;
-    return rows.map(r => ({
+
+    const rows = stmt.all(modelFamily, since) as Array<{
+      interval_ts: number;
+      avg_percent: number;
+      count: number;
+    }>;
+    return rows.map((r) => ({
       timestamp: r.interval_ts,
       avgPercent: r.avg_percent,
       count: r.count,
@@ -653,31 +747,33 @@ export class UsageMonitor {
    * Calculate burn rate from quota snapshots (% per hour)
    * Returns null if insufficient data
    */
-  calculateBurnRateFromSnapshots(modelFamily: 'claude' | 'gemini'): number | null {
+  calculateBurnRateFromSnapshots(
+    modelFamily: "claude" | "gemini",
+  ): number | null {
     const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
     const snapshots = this.getQuotaSnapshots(modelFamily, twoHoursAgo);
-    
+
     if (snapshots.length < 2) {
       return null; // Need at least 2 data points
     }
-    
+
     const oldest = snapshots[0];
     const newest = snapshots[snapshots.length - 1];
-    
+
     const deltaPercent = oldest.avgPercent - newest.avgPercent;
     const deltaHours = (newest.timestamp - oldest.timestamp) / (60 * 60 * 1000);
-    
+
     if (deltaHours < 0.1) {
       return null; // Not enough time elapsed
     }
-    
+
     const burnRate = deltaPercent / deltaHours;
-    
+
     // If quota went UP (reset happened), we can't calculate burn rate
     if (burnRate < 0) {
       return null;
     }
-    
+
     return Math.round(burnRate * 10) / 10; // Round to 1 decimal
   }
 
@@ -685,34 +781,40 @@ export class UsageMonitor {
    * Get accurate burn rate info for a model family
    */
   getAccurateBurnRate(
-    modelFamily: 'claude' | 'gemini',
-    currentQuotaPercent: number
-  ): { burnRatePerHour: number; hoursRemaining: number | null; runway: string; dataPoints: number; confidence: 'high' | 'medium' | 'low' } {
+    modelFamily: "claude" | "gemini",
+    currentQuotaPercent: number,
+  ): {
+    burnRatePerHour: number;
+    hoursRemaining: number | null;
+    runway: string;
+    dataPoints: number;
+    confidence: "high" | "medium" | "low";
+  } {
     const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
     const snapshots = this.getQuotaSnapshots(modelFamily, twoHoursAgo);
-    
+
     const burnRate = this.calculateBurnRateFromSnapshots(modelFamily);
-    
+
     // Determine confidence based on data points
-    let confidence: 'high' | 'medium' | 'low' = 'low';
+    let confidence: "high" | "medium" | "low" = "low";
     if (snapshots.length >= 10) {
-      confidence = 'high';
+      confidence = "high";
     } else if (snapshots.length >= 4) {
-      confidence = 'medium';
+      confidence = "medium";
     }
-    
+
     if (burnRate === null || burnRate <= 0) {
       return {
         burnRatePerHour: 0,
         hoursRemaining: null,
-        runway: 'Stable',
+        runway: "Stable",
         dataPoints: snapshots.length,
         confidence,
       };
     }
-    
+
     const hoursRemaining = currentQuotaPercent / burnRate;
-    
+
     let runway: string;
     if (hoursRemaining < 1) {
       runway = `~${Math.round(hoursRemaining * 60)}m`;
@@ -721,9 +823,9 @@ export class UsageMonitor {
     } else if (hoursRemaining < 168) {
       runway = `~${Math.round(hoursRemaining / 24)}d`;
     } else {
-      runway = '>7d';
+      runway = ">7d";
     }
-    
+
     return {
       burnRatePerHour: burnRate,
       hoursRemaining,
@@ -738,7 +840,9 @@ export class UsageMonitor {
    */
   cleanupOldSnapshots(hoursToKeep: number = 24): number {
     const cutoff = Date.now() - hoursToKeep * 60 * 60 * 1000;
-    const stmt = this.db.prepare('DELETE FROM quota_snapshots WHERE timestamp < ?');
+    const stmt = this.db.prepare(
+      "DELETE FROM quota_snapshots WHERE timestamp < ?",
+    );
     return stmt.run(cutoff).changes;
   }
 

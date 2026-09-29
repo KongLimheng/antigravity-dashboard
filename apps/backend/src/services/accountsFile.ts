@@ -1,30 +1,41 @@
-import { watch, FSWatcher } from 'chokidar';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { homedir } from 'os';
-import { EventEmitter } from 'events';
-import type { 
-  RawAccountsFile, 
-  RawAccountData, 
-  LocalAccount, 
-  AccountStatus,
-  RateLimitInfo,
-  DashboardStats,
+import { FSWatcher, watch } from "chokidar";
+import { EventEmitter } from "events";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
+import { dirname, join } from "path";
+import type {
   AccountDiff,
-  SubscriptionTier,
-  ModelQuotaDisplay,
+  AccountStatus,
   AddAccountPayload,
   BestAccountRecommendation,
-  RotationStrategy,
+  DashboardStats,
+  LocalAccount,
+  RateLimitInfo,
+  RawAccountData,
+  RawAccountsFile,
   RotationConfig,
   RotationResult,
-  RotationStats
-} from '../types';
-import { DEFAULT_ROTATION_CONFIG } from '../types';
+  RotationStats,
+} from "../types";
+import { DEFAULT_ROTATION_CONFIG } from "../types";
 
-const ACCOUNTS_FILE_PATH = join(homedir(), '.config', 'opencode', 'antigravity-accounts.json');
-const CONFIG_FILE_PATH = join(homedir(), '.config', 'opencode', 'antigravity.json');
-const PROFILES_FILE_PATH = join(homedir(), '.antigravity-profiles', 'profiles.json');
+const ACCOUNTS_FILE_PATH = join(
+  homedir(),
+  ".config",
+  "opencode",
+  "antigravity-accounts.json",
+);
+const CONFIG_FILE_PATH = join(
+  homedir(),
+  ".config",
+  "opencode",
+  "antigravity.json",
+);
+const PROFILES_FILE_PATH = join(
+  homedir(),
+  ".antigravity-profiles",
+  "profiles.json",
+);
 
 export class AccountsFileService extends EventEmitter {
   private watcher: FSWatcher | null = null;
@@ -46,7 +57,10 @@ export class AccountsFileService extends EventEmitter {
     },
     lastRotation: null,
   };
-  private quotaCache: Map<string, { claudePercent: number; geminiPercent: number }> = new Map();
+  private quotaCache: Map<
+    string,
+    { claudePercent: number; geminiPercent: number }
+  > = new Map();
 
   constructor() {
     super();
@@ -70,9 +84,13 @@ export class AccountsFileService extends EventEmitter {
   }
 
   private setupFileWatcher(): void {
-    const watchPaths = [ACCOUNTS_FILE_PATH, PROFILES_FILE_PATH].filter(p => existsSync(p));
+    const watchPaths = [ACCOUNTS_FILE_PATH, PROFILES_FILE_PATH].filter((p) =>
+      existsSync(p),
+    );
     if (watchPaths.length === 0) {
-      console.warn(`[AccountsFileService] Watching for accounts: neither accounts file nor profiles file found initially`);
+      console.warn(
+        `[AccountsFileService] Watching for accounts: neither accounts file nor profiles file found initially`,
+      );
       return;
     }
 
@@ -81,17 +99,19 @@ export class AccountsFileService extends EventEmitter {
       ignoreInitial: true,
       awaitWriteFinish: {
         stabilityThreshold: 100,
-        pollInterval: 50
-      }
+        pollInterval: 50,
+      },
     });
 
-    this.watcher.on('change', (changedPath) => {
-      console.log(`[AccountsFileService] File changed (${changedPath}), reloading...`);
+    this.watcher.on("change", (changedPath) => {
+      console.log(
+        `[AccountsFileService] File changed (${changedPath}), reloading...`,
+      );
       this.loadAccountsFile();
     });
 
-    this.watcher.on('error', (error) => {
-      console.error('[AccountsFileService] Watcher error:', error);
+    this.watcher.on("error", (error) => {
+      console.error("[AccountsFileService] Watcher error:", error);
     });
   }
 
@@ -110,7 +130,7 @@ export class AccountsFileService extends EventEmitter {
     this.updateInterval = setInterval(() => {
       const updated = this.updateRateLimitTimers();
       if (updated) {
-        this.emit('rate_limits_updated', this.processedAccounts);
+        this.emit("rate_limits_updated", this.processedAccounts);
       }
     }, 15000);
     this.updateInterval.unref();
@@ -122,26 +142,38 @@ export class AccountsFileService extends EventEmitter {
 
     for (const account of this.processedAccounts) {
       if (account.rateLimits.claude) {
-        const newTimeUntilReset = Math.max(0, account.rateLimits.claude.resetTime - now);
+        const newTimeUntilReset = Math.max(
+          0,
+          account.rateLimits.claude.resetTime - now,
+        );
         const wasExpired = account.rateLimits.claude.isExpired;
         account.rateLimits.claude.timeUntilReset = newTimeUntilReset;
         account.rateLimits.claude.isExpired = newTimeUntilReset === 0;
-        
+
         if (!wasExpired && account.rateLimits.claude.isExpired) {
           hasChanges = true;
-          this.emit('rate_limit_cleared', { email: account.email, family: 'claude' });
+          this.emit("rate_limit_cleared", {
+            email: account.email,
+            family: "claude",
+          });
         }
       }
-      
+
       if (account.rateLimits.gemini) {
-        const newTimeUntilReset = Math.max(0, account.rateLimits.gemini.resetTime - now);
+        const newTimeUntilReset = Math.max(
+          0,
+          account.rateLimits.gemini.resetTime - now,
+        );
         const wasExpired = account.rateLimits.gemini.isExpired;
         account.rateLimits.gemini.timeUntilReset = newTimeUntilReset;
         account.rateLimits.gemini.isExpired = newTimeUntilReset === 0;
-        
+
         if (!wasExpired && account.rateLimits.gemini.isExpired) {
           hasChanges = true;
-          this.emit('rate_limit_cleared', { email: account.email, family: 'gemini' });
+          this.emit("rate_limit_cleared", {
+            email: account.email,
+            family: "gemini",
+          });
         }
       }
 
@@ -164,13 +196,13 @@ export class AccountsFileService extends EventEmitter {
 
     if (existsSync(ACCOUNTS_FILE_PATH)) {
       try {
-        const content = readFileSync(ACCOUNTS_FILE_PATH, 'utf-8');
+        const content = readFileSync(ACCOUNTS_FILE_PATH, "utf-8");
         const parsed = JSON.parse(content);
         if (Array.isArray(parsed.accounts)) {
           data = parsed;
         }
       } catch (e) {
-        console.warn('[AccountsFileService] Error reading accounts file:', e);
+        console.warn("[AccountsFileService] Error reading accounts file:", e);
       }
     }
 
@@ -178,21 +210,33 @@ export class AccountsFileService extends EventEmitter {
     let discoveredAny = false;
 
     // 1. Discover from ~/.antigravity-profiles
-    const profilesJsonPath = join(home, '.antigravity-profiles', 'profiles.json');
+    const profilesJsonPath = join(
+      home,
+      ".antigravity-profiles",
+      "profiles.json",
+    );
     if (existsSync(profilesJsonPath)) {
       try {
-        const profData = JSON.parse(readFileSync(profilesJsonPath, 'utf-8'));
+        const profData = JSON.parse(readFileSync(profilesJsonPath, "utf-8"));
         if (Array.isArray(profData.profiles)) {
           for (const prof of profData.profiles) {
-            const credPath = join(home, '.antigravity-profiles', prof.id, 'credentials.json');
+            const credPath = join(
+              home,
+              ".antigravity-profiles",
+              prof.id,
+              "credentials.json",
+            );
             if (existsSync(credPath)) {
               try {
-                const cred = JSON.parse(readFileSync(credPath, 'utf-8'));
+                const cred = JSON.parse(readFileSync(credPath, "utf-8"));
                 const tokenObj = cred.token || {};
-                const refreshToken = tokenObj.refresh_token || cred.refresh_token;
+                const refreshToken =
+                  tokenObj.refresh_token || cred.refresh_token;
                 const email = prof.email || cred.email;
                 if (email && refreshToken) {
-                  const existing = data.accounts.find(a => a.email.toLowerCase() === email.toLowerCase());
+                  const existing = data.accounts.find(
+                    (a) => a.email.toLowerCase() === email.toLowerCase(),
+                  );
                   if (!existing) {
                     data.accounts.push({
                       email,
@@ -219,28 +263,48 @@ export class AccountsFileService extends EventEmitter {
     }
 
     // 2. Discover from ~/.config/antigravity-switcher
-    const switcherProfilesPath = join(home, '.config', 'antigravity-switcher', 'profiles.json');
+    const switcherProfilesPath = join(
+      home,
+      ".config",
+      "antigravity-switcher",
+      "profiles.json",
+    );
     if (existsSync(switcherProfilesPath)) {
       try {
-        const switchData = JSON.parse(readFileSync(switcherProfilesPath, 'utf-8'));
+        const switchData = JSON.parse(
+          readFileSync(switcherProfilesPath, "utf-8"),
+        );
         if (Array.isArray(switchData.profiles)) {
           for (const prof of switchData.profiles) {
-            const credPath = join(home, '.config', 'antigravity-switcher', 'credentials', `${prof.id}.json`);
+            const credPath = join(
+              home,
+              ".config",
+              "antigravity-switcher",
+              "credentials",
+              `${prof.id}.json`,
+            );
             if (existsSync(credPath)) {
               try {
-                const cred = JSON.parse(readFileSync(credPath, 'utf-8'));
+                const cred = JSON.parse(readFileSync(credPath, "utf-8"));
                 const tokenObj = cred.token || {};
-                const refreshToken = tokenObj.refresh_token || cred.refresh_token;
+                const refreshToken =
+                  tokenObj.refresh_token || cred.refresh_token;
                 const email = prof.email || cred.email;
                 if (email && refreshToken) {
-                  const existing = data.accounts.find(a => a.email.toLowerCase() === email.toLowerCase());
+                  const existing = data.accounts.find(
+                    (a) => a.email.toLowerCase() === email.toLowerCase(),
+                  );
                   if (!existing) {
                     data.accounts.push({
                       email,
                       refreshToken,
                       projectId: cred.project_id || cred.projectId,
-                      addedAt: prof.created_at ? prof.created_at * 1000 : Date.now(),
-                      lastUsed: prof.last_used ? prof.last_used * 1000 : Date.now(),
+                      addedAt: prof.created_at
+                        ? prof.created_at * 1000
+                        : Date.now(),
+                      lastUsed: prof.last_used
+                        ? prof.last_used * 1000
+                        : Date.now(),
                     });
                     discoveredAny = true;
                   }
@@ -269,46 +333,58 @@ export class AccountsFileService extends EventEmitter {
   private loadAccountsFile(): void {
     try {
       const data = this.discoverAndMergeAccounts();
-      
+
       const previousAccounts = [...this.processedAccounts];
       this.processedAccounts = this.processAccounts(data);
       this.lastData = data;
 
-      const diffs = this.calculateDiffs(previousAccounts, this.processedAccounts);
-      
+      const diffs = this.calculateDiffs(
+        previousAccounts,
+        this.processedAccounts,
+      );
+
       if (diffs.length > 0) {
-        this.emit('accounts_changed', diffs);
+        this.emit("accounts_changed", diffs);
       }
-      
-      this.emit('accounts_loaded', this.processedAccounts);
-      console.log(`[AccountsFileService] Loaded ${this.processedAccounts.length} accounts`);
+
+      this.emit("accounts_loaded", this.processedAccounts);
+      console.log(
+        `[AccountsFileService] Loaded ${this.processedAccounts.length} accounts`,
+      );
     } catch (error) {
-      console.error('[AccountsFileService] Error loading accounts file:', error);
+      console.error(
+        "[AccountsFileService] Error loading accounts file:",
+        error,
+      );
       this.processedAccounts = [];
       this.lastData = null;
-      this.emit('accounts_loaded', []);
-      this.emit('error', error);
+      this.emit("accounts_loaded", []);
+      this.emit("error", error);
     }
   }
 
   private processAccounts(data: RawAccountsFile): LocalAccount[] {
     const now = Date.now();
-    
+
     return data.accounts.map((raw, index) => {
       const claudeResetTime = raw.rateLimitResetTimes?.claude;
       const geminiResetTime = raw.rateLimitResetTimes?.gemini;
-      
-      const claudeRateLimit: RateLimitInfo | undefined = claudeResetTime ? {
-        resetTime: claudeResetTime,
-        timeUntilReset: Math.max(0, claudeResetTime - now),
-        isExpired: claudeResetTime <= now
-      } : undefined;
-      
-      const geminiRateLimit: RateLimitInfo | undefined = geminiResetTime ? {
-        resetTime: geminiResetTime,
-        timeUntilReset: Math.max(0, geminiResetTime - now),
-        isExpired: geminiResetTime <= now
-      } : undefined;
+
+      const claudeRateLimit: RateLimitInfo | undefined = claudeResetTime
+        ? {
+            resetTime: claudeResetTime,
+            timeUntilReset: Math.max(0, claudeResetTime - now),
+            isExpired: claudeResetTime <= now,
+          }
+        : undefined;
+
+      const geminiRateLimit: RateLimitInfo | undefined = geminiResetTime
+        ? {
+            resetTime: geminiResetTime,
+            timeUntilReset: Math.max(0, geminiResetTime - now),
+            isExpired: geminiResetTime <= now,
+          }
+        : undefined;
 
       const isCliActive = this.activeCliEmail
         ? raw.email.toLowerCase() === this.activeCliEmail.toLowerCase()
@@ -322,13 +398,15 @@ export class AccountsFileService extends EventEmitter {
         lastUsed: raw.lastUsed,
         isActive: index === data.activeIndex,
         isActiveInCli: isCliActive,
-        activeForClaude: index === (data.activeIndexByFamily?.claude ?? data.activeIndex),
-        activeForGemini: index === (data.activeIndexByFamily?.gemini ?? data.activeIndex),
-        status: 'available',
+        activeForClaude:
+          index === (data.activeIndexByFamily?.claude ?? data.activeIndex),
+        activeForGemini:
+          index === (data.activeIndexByFamily?.gemini ?? data.activeIndex),
+        status: "available",
         rateLimits: {
           claude: claudeRateLimit,
-          gemini: geminiRateLimit
-        }
+          gemini: geminiRateLimit,
+        },
       };
 
       account.status = this.calculateAccountStatus(account);
@@ -337,32 +415,37 @@ export class AccountsFileService extends EventEmitter {
   }
 
   private calculateAccountStatus(account: LocalAccount): AccountStatus {
-    const claudeLimited = account.rateLimits.claude && !account.rateLimits.claude.isExpired;
-    const geminiLimited = account.rateLimits.gemini && !account.rateLimits.gemini.isExpired;
-    
-    if (claudeLimited && geminiLimited) return 'rate_limited_all';
-    if (claudeLimited) return 'rate_limited_claude';
-    if (geminiLimited) return 'rate_limited_gemini';
-    return 'available';
+    const claudeLimited =
+      account.rateLimits.claude && !account.rateLimits.claude.isExpired;
+    const geminiLimited =
+      account.rateLimits.gemini && !account.rateLimits.gemini.isExpired;
+
+    if (claudeLimited && geminiLimited) return "rate_limited_all";
+    if (claudeLimited) return "rate_limited_claude";
+    if (geminiLimited) return "rate_limited_gemini";
+    return "available";
   }
 
-  private calculateDiffs(previous: LocalAccount[], current: LocalAccount[]): AccountDiff[] {
+  private calculateDiffs(
+    previous: LocalAccount[],
+    current: LocalAccount[],
+  ): AccountDiff[] {
     const diffs: AccountDiff[] = [];
-    const prevMap = new Map(previous.map(a => [a.email, a]));
-    const currMap = new Map(current.map(a => [a.email, a]));
+    const prevMap = new Map(previous.map((a) => [a.email, a]));
+    const currMap = new Map(current.map((a) => [a.email, a]));
 
     for (const [email, account] of currMap) {
       const prev = prevMap.get(email);
       if (!prev) {
-        diffs.push({ op: 'add', email, account });
+        diffs.push({ op: "add", email, account });
       } else if (JSON.stringify(prev) !== JSON.stringify(account)) {
-        diffs.push({ op: 'update', email, changes: account });
+        diffs.push({ op: "update", email, changes: account });
       }
     }
 
     for (const email of prevMap.keys()) {
       if (!currMap.has(email)) {
-        diffs.push({ op: 'remove', email });
+        diffs.push({ op: "remove", email });
       }
     }
 
@@ -374,46 +457,52 @@ export class AccountsFileService extends EventEmitter {
   }
 
   getActiveAccount(): LocalAccount | null {
-    return this.processedAccounts.find(a => a.isActive) || null;
+    return this.processedAccounts.find((a) => a.isActive) || null;
   }
 
-  getActiveAccountForFamily(family: 'claude' | 'gemini'): LocalAccount | null {
-    if (family === 'claude') {
-      return this.processedAccounts.find(a => a.activeForClaude) || null;
+  getActiveAccountForFamily(family: "claude" | "gemini"): LocalAccount | null {
+    if (family === "claude") {
+      return this.processedAccounts.find((a) => a.activeForClaude) || null;
     }
-    return this.processedAccounts.find(a => a.activeForGemini) || null;
+    return this.processedAccounts.find((a) => a.activeForGemini) || null;
   }
 
   getRateLimitedAccounts(): LocalAccount[] {
-    return this.processedAccounts.filter(a => a.status !== 'available');
+    return this.processedAccounts.filter((a) => a.status !== "available");
   }
 
   getAvailableAccounts(): LocalAccount[] {
-    return this.processedAccounts.filter(a => a.status === 'available');
+    return this.processedAccounts.filter((a) => a.status === "available");
   }
 
-  markAccountRateLimited(email: string, family: 'claude' | 'gemini', resetTime?: number): void {
-    const account = this.processedAccounts.find(a => a.email === email);
+  markAccountRateLimited(
+    email: string,
+    family: "claude" | "gemini",
+    resetTime?: number,
+  ): void {
+    const account = this.processedAccounts.find((a) => a.email === email);
     if (!account) return;
 
     const now = Date.now();
-    const actualResetTime = resetTime || (now + 5 * 60 * 60 * 1000);
-    
+    const actualResetTime = resetTime || now + 5 * 60 * 60 * 1000;
+
     const rateLimitInfo: RateLimitInfo = {
       resetTime: actualResetTime,
       timeUntilReset: Math.max(0, actualResetTime - now),
-      isExpired: actualResetTime <= now
+      isExpired: actualResetTime <= now,
     };
 
-    if (family === 'claude') {
+    if (family === "claude") {
       account.rateLimits.claude = rateLimitInfo;
     } else {
       account.rateLimits.gemini = rateLimitInfo;
     }
 
     account.status = this.calculateAccountStatus(account);
-    this.emit('accounts_changed', [{ type: 'update', account }]);
-    console.log(`[AccountsFileService] Marked ${email} as rate-limited for ${family} until ${new Date(actualResetTime).toISOString()}`);
+    this.emit("accounts_changed", [{ type: "update", account }]);
+    console.log(
+      `[AccountsFileService] Marked ${email} as rate-limited for ${family} until ${new Date(actualResetTime).toISOString()}`,
+    );
   }
 
   getStats(): DashboardStats {
@@ -423,7 +512,7 @@ export class AccountsFileService extends EventEmitter {
       availableAccounts: this.getAvailableAccounts().length,
       rateLimitedAccounts: this.getRateLimitedAccounts().length,
       activeAccount: active?.email || null,
-      lastUpdate: Date.now()
+      lastUpdate: Date.now(),
     };
   }
 
@@ -442,9 +531,11 @@ export class AccountsFileService extends EventEmitter {
    */
   async addAccount(payload: AddAccountPayload): Promise<LocalAccount> {
     const { email, refreshToken, projectId } = payload;
-    
+
     // Check if account already exists
-    const existing = this.processedAccounts.find(a => a.email.toLowerCase() === email.toLowerCase());
+    const existing = this.processedAccounts.find(
+      (a) => a.email.toLowerCase() === email.toLowerCase(),
+    );
     if (existing) {
       throw new Error(`Account ${email} already exists`);
     }
@@ -478,13 +569,13 @@ export class AccountsFileService extends EventEmitter {
 
     // Reload to get processed account
     this.loadAccountsFile();
-    
-    const newAccount = this.processedAccounts.find(a => a.email === email);
+
+    const newAccount = this.processedAccounts.find((a) => a.email === email);
     if (!newAccount) {
-      throw new Error('Failed to add account');
+      throw new Error("Failed to add account");
     }
 
-    this.emit('account_added', newAccount);
+    this.emit("account_added", newAccount);
     return newAccount;
   }
 
@@ -493,11 +584,11 @@ export class AccountsFileService extends EventEmitter {
    */
   async removeAccount(email: string): Promise<void> {
     if (!this.lastData) {
-      throw new Error('No accounts data loaded');
+      throw new Error("No accounts data loaded");
     }
 
     const index = this.lastData.accounts.findIndex(
-      a => a.email.toLowerCase() === email.toLowerCase()
+      (a) => a.email.toLowerCase() === email.toLowerCase(),
     );
 
     if (index === -1) {
@@ -522,7 +613,7 @@ export class AccountsFileService extends EventEmitter {
 
     await this.saveAccountsFile(data);
     this.loadAccountsFile();
-    this.emit('account_removed', email);
+    this.emit("account_removed", email);
   }
 
   /**
@@ -530,14 +621,14 @@ export class AccountsFileService extends EventEmitter {
    */
   async removeAccounts(emails: string[]): Promise<void> {
     if (!this.lastData) {
-      throw new Error('No accounts data loaded');
+      throw new Error("No accounts data loaded");
     }
 
-    const emailsLower = emails.map(e => e.toLowerCase());
+    const emailsLower = new Set(emails.map((e) => e.toLowerCase()));
     const data = { ...this.lastData };
-    
+
     data.accounts = data.accounts.filter(
-      a => !emailsLower.includes(a.email.toLowerCase())
+      (a) => !emailsLower.has(a.email.toLowerCase()),
     );
 
     // Adjust active indices
@@ -555,19 +646,22 @@ export class AccountsFileService extends EventEmitter {
 
     await this.saveAccountsFile(data);
     this.loadAccountsFile();
-    this.emit('accounts_removed', emails);
+    this.emit("accounts_removed", emails);
   }
 
   /**
    * Set an account as active (for both families)
    */
-  async setActiveAccount(email: string, syncCliEmail: boolean = true): Promise<void> {
+  async setActiveAccount(
+    email: string,
+    syncCliEmail: boolean = true,
+  ): Promise<void> {
     if (!this.lastData) {
-      throw new Error('No accounts data loaded');
+      throw new Error("No accounts data loaded");
     }
 
     const index = this.lastData.accounts.findIndex(
-      a => a.email.toLowerCase() === email.toLowerCase()
+      (a) => a.email.toLowerCase() === email.toLowerCase(),
     );
 
     if (index === -1) {
@@ -576,7 +670,7 @@ export class AccountsFileService extends EventEmitter {
 
     const data = { ...this.lastData };
     data.activeIndex = index;
-    
+
     // Also update per-family indices
     if (!data.activeIndexByFamily) {
       data.activeIndexByFamily = {};
@@ -593,7 +687,7 @@ export class AccountsFileService extends EventEmitter {
 
     await this.saveAccountsFile(data);
     this.loadAccountsFile();
-    this.emit('active_account_changed', email);
+    this.emit("active_account_changed", email);
   }
 
   /**
@@ -603,7 +697,7 @@ export class AccountsFileService extends EventEmitter {
     if (!this.lastData) return;
 
     const index = this.lastData.accounts.findIndex(
-      a => a.email.toLowerCase() === email.toLowerCase()
+      (a) => a.email.toLowerCase() === email.toLowerCase(),
     );
 
     if (index === -1) return;
@@ -617,7 +711,9 @@ export class AccountsFileService extends EventEmitter {
   /**
    * Get the best accounts for Gemini and Claude based on quota
    */
-  getBestAccounts(quotaMap: Map<string, { claudePercent: number; geminiPercent: number }>): BestAccountRecommendation {
+  getBestAccounts(
+    quotaMap: Map<string, { claudePercent: number; geminiPercent: number }>,
+  ): BestAccountRecommendation {
     let bestGemini: { email: string; percentage: number } | null = null;
     let bestClaude: { email: string; percentage: number } | null = null;
 
@@ -648,8 +744,11 @@ export class AccountsFileService extends EventEmitter {
       mkdirSync(dir, { recursive: true });
     }
 
-    writeFileSync(ACCOUNTS_FILE_PATH, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
-    console.log('[AccountsFileService] Saved accounts file');
+    writeFileSync(ACCOUNTS_FILE_PATH, JSON.stringify(data, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    console.log("[AccountsFileService] Saved accounts file");
   }
 
   /**
@@ -665,12 +764,12 @@ export class AccountsFileService extends EventEmitter {
   exportAccounts(includeTokens: boolean = false): any[] {
     if (!this.lastData) return [];
 
-    return this.lastData.accounts.map(acc => ({
+    return this.lastData.accounts.map((acc) => ({
       email: acc.email,
       projectId: acc.projectId,
       addedAt: acc.addedAt,
       lastUsed: acc.lastUsed,
-      ...(includeTokens ? { refreshToken: acc.refreshToken } : {})
+      ...(includeTokens ? { refreshToken: acc.refreshToken } : {}),
     }));
   }
 
@@ -678,14 +777,18 @@ export class AccountsFileService extends EventEmitter {
 
   setRotationConfig(config: Partial<RotationConfig>): void {
     this.rotationConfig = { ...this.rotationConfig, ...config };
-    console.log(`[AccountsFileService] Rotation config updated: ${this.rotationConfig.strategy}`);
+    console.log(
+      `[AccountsFileService] Rotation config updated: ${this.rotationConfig.strategy}`,
+    );
   }
 
   getRotationConfig(): RotationConfig {
     return { ...this.rotationConfig };
   }
 
-  updateQuotaCache(quotaMap: Map<string, { claudePercent: number; geminiPercent: number }>): void {
+  updateQuotaCache(
+    quotaMap: Map<string, { claudePercent: number; geminiPercent: number }>,
+  ): void {
     this.quotaCache = new Map(quotaMap);
   }
 
@@ -693,7 +796,7 @@ export class AccountsFileService extends EventEmitter {
     return { ...this.rotationStats };
   }
 
-  selectAccountForFamily(family: 'claude' | 'gemini'): RotationResult | null {
+  selectAccountForFamily(family: "claude" | "gemini"): RotationResult | null {
     const availableAccounts = this.getAvailableAccountsForFamily(family);
     if (availableAccounts.length === 0) {
       return null;
@@ -702,8 +805,11 @@ export class AccountsFileService extends EventEmitter {
     if (availableAccounts.length === 1) {
       return {
         email: availableAccounts[0].email,
-        reason: 'Only available account',
-        quotaPercent: this.getQuotaForAccount(availableAccounts[0].email, family),
+        reason: "Only available account",
+        quotaPercent: this.getQuotaForAccount(
+          availableAccounts[0].email,
+          family,
+        ),
         strategy: this.rotationConfig.strategy,
       };
     }
@@ -713,43 +819,56 @@ export class AccountsFileService extends EventEmitter {
     return result;
   }
 
-  private getAvailableAccountsForFamily(family: 'claude' | 'gemini'): LocalAccount[] {
-    return this.processedAccounts.filter(acc => {
-      if (family === 'claude') {
-        return acc.status === 'available' || acc.status === 'rate_limited_gemini';
+  private getAvailableAccountsForFamily(
+    family: "claude" | "gemini",
+  ): LocalAccount[] {
+    return this.processedAccounts.filter((acc) => {
+      if (family === "claude") {
+        return (
+          acc.status === "available" || acc.status === "rate_limited_gemini"
+        );
       }
-      return acc.status === 'available' || acc.status === 'rate_limited_claude';
+      return acc.status === "available" || acc.status === "rate_limited_claude";
     });
   }
 
-  private getQuotaForAccount(email: string, family: 'claude' | 'gemini'): number {
+  private getQuotaForAccount(
+    email: string,
+    family: "claude" | "gemini",
+  ): number {
     const quota = this.quotaCache.get(email);
     if (!quota) return 0;
-    return family === 'claude' ? quota.claudePercent : quota.geminiPercent;
+    return family === "claude" ? quota.claudePercent : quota.geminiPercent;
   }
 
-  private applyStrategy(family: 'claude' | 'gemini', accounts: LocalAccount[]): RotationResult {
+  private applyStrategy(
+    family: "claude" | "gemini",
+    accounts: LocalAccount[],
+  ): RotationResult {
     const strategy = this.rotationConfig.strategy;
 
     switch (strategy) {
-      case 'round_robin':
+      case "round_robin":
         return this.roundRobinSelect(family, accounts);
-      case 'least_recently_used':
+      case "least_recently_used":
         return this.lruSelect(accounts);
-      case 'highest_quota':
+      case "highest_quota":
         return this.highestQuotaSelect(family, accounts);
-      case 'random':
+      case "random":
         return this.randomSelect(accounts);
-      case 'weighted':
+      case "weighted":
         return this.weightedSelect(family, accounts);
-      case 'sticky':
+      case "sticky":
         return this.stickySelect(family, accounts);
       default:
         return this.highestQuotaSelect(family, accounts);
     }
   }
 
-  private roundRobinSelect(family: 'claude' | 'gemini', accounts: LocalAccount[]): RotationResult {
+  private roundRobinSelect(
+    family: "claude" | "gemini",
+    accounts: LocalAccount[],
+  ): RotationResult {
     const key = family;
     const currentIndex = this.roundRobinIndex.get(key) ?? 0;
     const nextIndex = (currentIndex + 1) % accounts.length;
@@ -760,7 +879,7 @@ export class AccountsFileService extends EventEmitter {
       email: selected.email,
       reason: `Round robin: position ${nextIndex + 1}/${accounts.length}`,
       quotaPercent: this.getQuotaForAccount(selected.email, family),
-      strategy: 'round_robin',
+      strategy: "round_robin",
     };
   }
 
@@ -773,11 +892,14 @@ export class AccountsFileService extends EventEmitter {
     return {
       email: selected.email,
       reason: `Least recently used: idle for ${idleMinutes}m`,
-      strategy: 'least_recently_used',
+      strategy: "least_recently_used",
     };
   }
 
-  private highestQuotaSelect(family: 'claude' | 'gemini', accounts: LocalAccount[]): RotationResult {
+  private highestQuotaSelect(
+    family: "claude" | "gemini",
+    accounts: LocalAccount[],
+  ): RotationResult {
     let best: LocalAccount = accounts[0];
     let bestQuota = 0;
 
@@ -793,7 +915,7 @@ export class AccountsFileService extends EventEmitter {
       email: best.email,
       reason: `Highest quota: ${bestQuota.toFixed(1)}%`,
       quotaPercent: bestQuota,
-      strategy: 'highest_quota',
+      strategy: "highest_quota",
     };
   }
 
@@ -804,13 +926,17 @@ export class AccountsFileService extends EventEmitter {
     return {
       email: selected.email,
       reason: `Random selection from ${accounts.length} accounts`,
-      strategy: 'random',
+      strategy: "random",
     };
   }
 
-  private weightedSelect(family: 'claude' | 'gemini', accounts: LocalAccount[]): RotationResult {
+  private weightedSelect(
+    family: "claude" | "gemini",
+    accounts: LocalAccount[],
+  ): RotationResult {
     const exponent = this.rotationConfig.weightExponent ?? 2;
-    const weights: { account: LocalAccount; weight: number; quota: number }[] = [];
+    const weights: { account: LocalAccount; weight: number; quota: number }[] =
+      [];
     let totalWeight = 0;
 
     for (const acc of accounts) {
@@ -832,7 +958,7 @@ export class AccountsFileService extends EventEmitter {
           email: account.email,
           reason: `Weighted selection: ${quota.toFixed(1)}% quota, weight=${weight.toFixed(1)}`,
           quotaPercent: quota,
-          strategy: 'weighted',
+          strategy: "weighted",
         };
       }
     }
@@ -842,26 +968,33 @@ export class AccountsFileService extends EventEmitter {
       email: last.account.email,
       reason: `Weighted fallback: ${last.quota.toFixed(1)}%`,
       quotaPercent: last.quota,
-      strategy: 'weighted',
+      strategy: "weighted",
     };
   }
 
-  private stickySelect(family: 'claude' | 'gemini', accounts: LocalAccount[]): RotationResult {
-    const currentActive = family === 'claude' 
-      ? this.processedAccounts.find(a => a.activeForClaude)
-      : this.processedAccounts.find(a => a.activeForGemini);
+  private stickySelect(
+    family: "claude" | "gemini",
+    accounts: LocalAccount[],
+  ): RotationResult {
+    const currentActive =
+      family === "claude"
+        ? this.processedAccounts.find((a) => a.activeForClaude)
+        : this.processedAccounts.find((a) => a.activeForGemini);
 
     const threshold = this.rotationConfig.stickyUntilPercent ?? 10;
 
-    if (currentActive && accounts.some(a => a.email === currentActive.email)) {
+    if (
+      currentActive &&
+      accounts.some((a) => a.email === currentActive.email)
+    ) {
       const currentQuota = this.getQuotaForAccount(currentActive.email, family);
-      
+
       if (currentQuota >= threshold) {
         return {
           email: currentActive.email,
           reason: `Sticky: staying with current (${currentQuota.toFixed(1)}% >= ${threshold}% threshold)`,
           quotaPercent: currentQuota,
-          strategy: 'sticky',
+          strategy: "sticky",
         };
       }
     }
@@ -870,14 +1003,18 @@ export class AccountsFileService extends EventEmitter {
     return {
       ...best,
       reason: `Sticky switch: previous below ${threshold}% threshold -> ${best.email}`,
-      strategy: 'sticky',
+      strategy: "sticky",
     };
   }
 
-  private recordRotation(family: 'claude' | 'gemini', result: RotationResult): void {
-    const currentActive = family === 'claude'
-      ? this.processedAccounts.find(a => a.activeForClaude)?.email
-      : this.processedAccounts.find(a => a.activeForGemini)?.email;
+  private recordRotation(
+    family: "claude" | "gemini",
+    result: RotationResult,
+  ): void {
+    const currentActive =
+      family === "claude"
+        ? this.processedAccounts.find((a) => a.activeForClaude)?.email
+        : this.processedAccounts.find((a) => a.activeForGemini)?.email;
 
     if (currentActive && currentActive !== result.email) {
       this.rotationStats.totalRotations++;
@@ -889,11 +1026,13 @@ export class AccountsFileService extends EventEmitter {
         family,
         reason: result.reason,
       };
-      this.emit('rotation', { family, ...result, from: currentActive });
+      this.emit("rotation", { family, ...result, from: currentActive });
     }
   }
 
-  async rotateAndSetActive(family: 'claude' | 'gemini'): Promise<RotationResult | null> {
+  async rotateAndSetActive(
+    family: "claude" | "gemini",
+  ): Promise<RotationResult | null> {
     const result = this.selectAccountForFamily(family);
     if (!result) return null;
 
@@ -901,11 +1040,14 @@ export class AccountsFileService extends EventEmitter {
     return result;
   }
 
-  private async setActiveAccountForFamily(email: string, family: 'claude' | 'gemini'): Promise<void> {
+  private async setActiveAccountForFamily(
+    email: string,
+    family: "claude" | "gemini",
+  ): Promise<void> {
     if (!this.lastData) return;
 
     const index = this.lastData.accounts.findIndex(
-      a => a.email.toLowerCase() === email.toLowerCase()
+      (a) => a.email.toLowerCase() === email.toLowerCase(),
     );
     if (index === -1) return;
 
@@ -918,7 +1060,7 @@ export class AccountsFileService extends EventEmitter {
 
     await this.saveAccountsFile(data);
     this.loadAccountsFile();
-    this.emit('active_account_changed', { email, family });
+    this.emit("active_account_changed", { email, family });
   }
 }
 

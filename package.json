@@ -25,6 +25,19 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "bin": {
+    "agn-dash": "./bin/agn-dash.js",
+    "antigravity-dashboard": "./bin/agn-dash.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "apps/backend/dist",
+    "apps/backend/package.json",
+    "apps/web/dist",
+    "apps/web/package.json",
+    ".env.example"
+  ],
   "scripts": {
     "build": "pnpm --filter=./apps/* run build",
     "predev": "pnpm --filter=@antigravity/backend build",
@@ -33,6 +46,8 @@
     "prestart": "node scripts/ensure-build.js",
     "start": "pnpm --filter=@antigravity/backend start",
     "start:all": "pnpm start",
+    "global:link": "npm link",
+    "global:unlink": "npm unlink -g antigravity-dashboard",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

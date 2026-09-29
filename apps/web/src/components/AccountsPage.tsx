@@ -1,14 +1,29 @@
-import { useEffect, useState, useMemo } from 'react';
-import { apiFetch } from '../utils/apiFetch';
-import { useDashboardStore } from '../stores/useDashboardStore';
 import {
-  Search, Trash2, RefreshCw, Download, Plus, Check, X,
-  Mail, Clock, Terminal, Zap, ShieldCheck
-} from 'lucide-react';
-import { SubscriptionBadge, CurrentBadge } from './SubscriptionBadge';
-import { QuotaBadge } from './QuotaPill';
-import { formatTimeUntilReset } from '../hooks/useQuotaWindow';
-import type { LocalAccount, AccountFilterType, CliStatus, RotationStrategy } from '../types';
+  Check,
+  Clock,
+  Download,
+  Mail,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Terminal,
+  Trash2,
+  X,
+  Zap,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { formatTimeUntilReset } from "../hooks/useQuotaWindow";
+import { useDashboardStore } from "../stores/useDashboardStore";
+import type {
+  AccountFilterType,
+  CliStatus,
+  LocalAccount,
+  RotationStrategy,
+} from "../types";
+import { apiFetch } from "../utils/apiFetch";
+import { QuotaBadge } from "./QuotaPill";
+import { CurrentBadge, SubscriptionBadge } from "./SubscriptionBadge";
 
 interface FilterCounts {
   all: number;
@@ -21,27 +36,27 @@ interface FilterCounts {
 function FilterTabs({
   current,
   onChange,
-  counts
+  counts,
 }: {
   current: AccountFilterType;
   onChange: (f: AccountFilterType) => void;
   counts: FilterCounts;
 }) {
   const tabs: { key: AccountFilterType; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: counts.all },
-    { key: 'PRO', label: 'PRO', count: counts.PRO },
-    { key: 'ULTRA', label: 'ULTRA', count: counts.ULTRA },
-    { key: 'FREE', label: 'FREE', count: counts.FREE },
-    { key: 'low_quota', label: 'Low Quota', count: counts.low_quota },
+    { key: "all", label: "All", count: counts.all },
+    { key: "PRO", label: "PRO", count: counts.PRO },
+    { key: "ULTRA", label: "ULTRA", count: counts.ULTRA },
+    { key: "FREE", label: "FREE", count: counts.FREE },
+    { key: "low_quota", label: "Low Quota", count: counts.low_quota },
   ];
 
   return (
     <div className="flex gap-1 flex-wrap">
-      {tabs.map(tab => (
+      {tabs.map((tab) => (
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`filter-tab ${current === tab.key ? 'active' : ''}`}
+          className={`filter-tab ${current === tab.key ? "active" : ""}`}
         >
           {tab.label}
           <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-white/10">
@@ -55,7 +70,7 @@ function FilterTabs({
 
 // Countdown component for rate limit reset time
 function ResetCountdown({ account }: { account: LocalAccount }) {
-  const [countdown, setCountdown] = useState('');
+  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     const update = () => {
@@ -63,18 +78,18 @@ function ResetCountdown({ account }: { account: LocalAccount }) {
       const geminiReset = account.rateLimits?.gemini?.resetTime;
 
       if (!claudeReset && !geminiReset) {
-        setCountdown('—');
+        setCountdown("—");
         return;
       }
 
       const now = Date.now();
       const resets = [
         claudeReset ? claudeReset - now : Infinity,
-        geminiReset ? geminiReset - now : Infinity
-      ].filter(t => t > 0);
+        geminiReset ? geminiReset - now : Infinity,
+      ].filter((t) => t > 0);
 
       if (resets.length === 0) {
-        setCountdown('Now');
+        setCountdown("Now");
         return;
       }
 
@@ -116,24 +131,22 @@ function AccountRow({
   onRefresh,
   onDelete,
   loading,
-  switchingCli
+  switchingCli,
 }: AccountRowProps) {
   const modelQuotas = account.modelQuotas || [];
-  const geminiPro = modelQuotas.find(m => m.id === 'gemini-3-pro');
-  const geminiFlash = modelQuotas.find(m => m.id === 'gemini-3-flash');
-  const geminiImage = modelQuotas.find(m => m.id === 'gemini-3-image');
-  const claude = modelQuotas.find(m => m.id === 'claude');
+  const geminiPro = modelQuotas.find((m) => m.id === "gemini-3-pro");
+  const geminiFlash = modelQuotas.find((m) => m.id === "gemini-3-flash");
+  const geminiImage = modelQuotas.find((m) => m.id === "gemini-3-image");
+  const claude = modelQuotas.find((m) => m.id === "claude");
 
   return (
-    <tr className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selected ? 'bg-white/5' : ''}`}>
+    <tr
+      className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selected ? "bg-white/5" : ""}`}
+    >
       {/* Checkbox */}
       <td className="py-3 px-3 w-10">
         <label className="checkbox-custom">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onSelect}
-          />
+          <input type="checkbox" checked={selected} onChange={onSelect} />
           <span className="checkmark"></span>
         </label>
       </td>
@@ -209,13 +222,12 @@ function AccountRow({
           <span className="text-xs">
             {account.lastUsed > 0
               ? new Date(account.lastUsed).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-              : 'Never'
-            }
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Never"}
           </span>
         </div>
       </td>
@@ -244,7 +256,9 @@ function AccountRow({
               className="p-1.5 text-text-muted hover:text-purple-400 hover:bg-purple-500/10 rounded transition-colors disabled:opacity-50"
               title="Switch Antigravity CLI to this account (without logout/relogin)"
             >
-              <Terminal className={`w-3.5 h-3.5 ${switchingCli ? 'animate-pulse text-purple-400' : ''}`} />
+              <Terminal
+                className={`w-3.5 h-3.5 ${switchingCli ? "animate-pulse text-purple-400" : ""}`}
+              />
             </button>
           )}
           <button
@@ -253,7 +267,9 @@ function AccountRow({
             className="p-1.5 text-text-muted hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors disabled:opacity-50"
             title="Refresh Quota"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
           </button>
           <button
             onClick={onDelete}
@@ -283,7 +299,7 @@ function CliAutoSwitchBanner({
   onChangeStrategy,
   onTriggerAutoSwitch,
   onTestKeyring,
-  loading
+  loading,
 }: CliAutoSwitchBannerProps) {
   const isEnabled = cliStatus?.autoSwitch?.enabled ?? true;
   const activeEmail = cliStatus?.activeEmail;
@@ -306,7 +322,9 @@ function CliAutoSwitchBanner({
                 {activeEmail}
               </span>
             ) : (
-              <span className="text-xs text-text-muted italic">No active CLI account</span>
+              <span className="text-xs text-text-muted italic">
+                No active CLI account
+              </span>
             )}
             {cliStatus?.keyringSynced && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -315,7 +333,10 @@ function CliAutoSwitchBanner({
             )}
           </div>
           <p className="text-xs text-text-muted">
-            Seamless zero-friction account switching for <code className="text-purple-300">agy</code> in terminal. Auto-failovers on rate limits (429) or low quota without logout and relogin.
+            Seamless zero-friction account switching for{" "}
+            <code className="text-purple-300">agy</code> in terminal.
+            Auto-failovers on rate limits (429) or low quota without logout and
+            relogin.
           </p>
         </div>
 
@@ -325,8 +346,10 @@ function CliAutoSwitchBanner({
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-text-muted">Strategy:</span>
             <select
-              value={cliStatus?.autoSwitch?.strategy || 'highest_quota'}
-              onChange={(e) => onChangeStrategy(e.target.value as RotationStrategy)}
+              value={cliStatus?.autoSwitch?.strategy || "highest_quota"}
+              onChange={(e) =>
+                onChangeStrategy(e.target.value as RotationStrategy)
+              }
               disabled={loading}
               className="bg-surface border border-white/10 text-xs text-text-primary rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-500/50"
             >
@@ -342,13 +365,19 @@ function CliAutoSwitchBanner({
             disabled={loading}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
               isEnabled
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                : 'bg-white/5 text-text-muted border-white/10 hover:bg-white/10 hover:text-text-primary'
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                : "bg-white/5 text-text-muted border-white/10 hover:bg-white/10 hover:text-text-primary"
             }`}
-            title={isEnabled ? 'Click to disable auto-switch' : 'Click to enable auto-switch'}
+            title={
+              isEnabled
+                ? "Click to disable auto-switch"
+                : "Click to enable auto-switch"
+            }
           >
-            <Zap className={`w-3.5 h-3.5 ${isEnabled ? 'text-emerald-400' : 'text-text-muted'}`} />
-            Auto-Switch: {isEnabled ? 'ON' : 'OFF'}
+            <Zap
+              className={`w-3.5 h-3.5 ${isEnabled ? "text-emerald-400" : "text-text-muted"}`}
+            />
+            Auto-Switch: {isEnabled ? "ON" : "OFF"}
           </button>
 
           {/* Trigger Auto-Switch Now */}
@@ -358,7 +387,7 @@ function CliAutoSwitchBanner({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
             title="Evaluate and switch CLI to next best account now"
           >
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
             Switch Now
           </button>
 
@@ -386,12 +415,14 @@ export function AccountsPage() {
     setAccountSearch,
     toggleAccountSelection,
     clearSelection,
-    setSelectedAccounts
+    setSelectedAccounts,
   } = useDashboardStore();
 
   const [enrichedAccounts, setEnrichedAccounts] = useState<LocalAccount[]>([]);
   const [loading, setLoading] = useState(false);
-  const [refreshingAccount, setRefreshingAccount] = useState<string | null>(null);
+  const [refreshingAccount, setRefreshingAccount] = useState<string | null>(
+    null,
+  );
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -403,13 +434,13 @@ export function AccountsPage() {
 
   const fetchCliStatus = async () => {
     try {
-      const res = await apiFetch('/api/cli/status');
+      const res = await apiFetch("/api/cli/status");
       const data = await res.json();
       if (data.success) {
         setCliStatus(data.data);
       }
     } catch (e) {
-      console.warn('Failed to fetch CLI status:', e);
+      console.warn("Failed to fetch CLI status:", e);
     }
   };
 
@@ -421,9 +452,9 @@ export function AccountsPage() {
   const handleToggleAutoSwitch = async (enabled: boolean) => {
     setCliActionLoading(true);
     try {
-      const res = await apiFetch('/api/cli/auto-switch/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/cli/auto-switch/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
       });
       const data = await res.json();
@@ -438,9 +469,9 @@ export function AccountsPage() {
   const handleChangeStrategy = async (strategy: RotationStrategy) => {
     setCliActionLoading(true);
     try {
-      const res = await apiFetch('/api/cli/auto-switch/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/cli/auto-switch/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ strategy }),
       });
       const data = await res.json();
@@ -455,10 +486,10 @@ export function AccountsPage() {
   const handleTriggerAutoSwitch = async () => {
     setCliActionLoading(true);
     try {
-      await apiFetch('/api/cli/auto-switch/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Triggered from Accounts Page' }),
+      await apiFetch("/api/cli/auto-switch/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Triggered from Accounts Page" }),
       });
       await fetchEnrichedAccounts();
       await fetchCliStatus();
@@ -470,7 +501,7 @@ export function AccountsPage() {
   const handleTestKeyring = async () => {
     setCliActionLoading(true);
     try {
-      const res = await apiFetch('/api/cli/test-keyring', { method: 'POST' });
+      const res = await apiFetch("/api/cli/test-keyring", { method: "POST" });
       const data = await res.json();
       if (data.success) {
         alert(`Keyring Status: ${data.data.message} (${data.data.platform})`);
@@ -487,14 +518,14 @@ export function AccountsPage() {
     setSwitchingCli(email);
     try {
       await apiFetch(`/api/cli/switch/${encodeURIComponent(email)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Manual switch from Accounts Page' }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Manual switch from Accounts Page" }),
       });
       await fetchEnrichedAccounts();
       await fetchCliStatus();
     } catch (error) {
-      console.error('Failed to switch CLI account:', error);
+      console.error("Failed to switch CLI account:", error);
     } finally {
       setSwitchingCli(null);
     }
@@ -503,13 +534,13 @@ export function AccountsPage() {
   const fetchEnrichedAccounts = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/accounts/enriched');
+      const res = await apiFetch("/api/accounts/enriched");
       const data = await res.json();
       if (data.success) {
         setEnrichedAccounts(data.data);
       }
     } catch (error) {
-      console.error('Failed to fetch accounts:', error);
+      console.error("Failed to fetch accounts:", error);
     } finally {
       setLoading(false);
     }
@@ -519,12 +550,14 @@ export function AccountsPage() {
   const filterCounts = useMemo<FilterCounts>(() => {
     return {
       all: enrichedAccounts.length,
-      PRO: enrichedAccounts.filter(a => a.subscriptionTier === 'PRO').length,
-      ULTRA: enrichedAccounts.filter(a => a.subscriptionTier === 'ULTRA').length,
-      FREE: enrichedAccounts.filter(a => a.subscriptionTier === 'FREE').length,
-      low_quota: enrichedAccounts.filter(a => {
+      PRO: enrichedAccounts.filter((a) => a.subscriptionTier === "PRO").length,
+      ULTRA: enrichedAccounts.filter((a) => a.subscriptionTier === "ULTRA")
+        .length,
+      FREE: enrichedAccounts.filter((a) => a.subscriptionTier === "FREE")
+        .length,
+      low_quota: enrichedAccounts.filter((a) => {
         const quotas = a.modelQuotas || [];
-        return quotas.some(q => q.percentage < 20);
+        return quotas.some((q) => q.percentage < 20);
       }).length,
     };
   }, [enrichedAccounts]);
@@ -535,19 +568,19 @@ export function AccountsPage() {
 
     // Apply filter
     switch (accountFilter) {
-      case 'PRO':
-        accounts = accounts.filter(a => a.subscriptionTier === 'PRO');
+      case "PRO":
+        accounts = accounts.filter((a) => a.subscriptionTier === "PRO");
         break;
-      case 'ULTRA':
-        accounts = accounts.filter(a => a.subscriptionTier === 'ULTRA');
+      case "ULTRA":
+        accounts = accounts.filter((a) => a.subscriptionTier === "ULTRA");
         break;
-      case 'FREE':
-        accounts = accounts.filter(a => a.subscriptionTier === 'FREE');
+      case "FREE":
+        accounts = accounts.filter((a) => a.subscriptionTier === "FREE");
         break;
-      case 'low_quota':
-        accounts = accounts.filter(a => {
+      case "low_quota":
+        accounts = accounts.filter((a) => {
           const quotas = a.modelQuotas || [];
-          return quotas.some(q => q.percentage < 20);
+          return quotas.some((q) => q.percentage < 20);
         });
         break;
     }
@@ -555,9 +588,7 @@ export function AccountsPage() {
     // Apply search
     if (accountSearch) {
       const search = accountSearch.toLowerCase();
-      accounts = accounts.filter(a =>
-        a.email.toLowerCase().includes(search)
-      );
+      accounts = accounts.filter((a) => a.email.toLowerCase().includes(search));
     }
 
     return accounts;
@@ -570,7 +601,7 @@ export function AccountsPage() {
       const getMinQuota = (acc: LocalAccount) => {
         const quotas = acc.modelQuotas || [];
         if (quotas.length === 0) return 0;
-        return Math.min(...quotas.map(q => q.percentage));
+        return Math.min(...quotas.map((q) => q.percentage));
       };
 
       const aMin = getMinQuota(a);
@@ -582,30 +613,35 @@ export function AccountsPage() {
   }, [filteredAccounts]);
 
   // Check if all filtered accounts are selected
-  const allSelected = sortedAccounts.length > 0 &&
-    sortedAccounts.every(a => selectedAccounts.includes(a.email));
+  const allSelected =
+    sortedAccounts.length > 0 &&
+    sortedAccounts.every((a) => selectedAccounts.includes(a.email));
 
   const handleSelectAll = () => {
     if (allSelected) {
       clearSelection();
     } else {
-      setSelectedAccounts(sortedAccounts.map(a => a.email));
+      setSelectedAccounts(sortedAccounts.map((a) => a.email));
     }
   };
 
   const handleSetActive = async (email: string) => {
     try {
-      await apiFetch(`/api/accounts/switch/${encodeURIComponent(email)}`, { method: 'POST' });
+      await apiFetch(`/api/accounts/switch/${encodeURIComponent(email)}`, {
+        method: "POST",
+      });
       await fetchEnrichedAccounts();
     } catch (error) {
-      console.error('Failed to set active account:', error);
+      console.error("Failed to set active account:", error);
     }
   };
 
   const handleRefreshAccount = async (email: string) => {
     setRefreshingAccount(email);
     try {
-      await apiFetch(`/api/accounts/${encodeURIComponent(email)}/refresh`, { method: 'POST' });
+      await apiFetch(`/api/accounts/${encodeURIComponent(email)}/refresh`, {
+        method: "POST",
+      });
       await fetchEnrichedAccounts();
     } finally {
       setRefreshingAccount(null);
@@ -614,33 +650,35 @@ export function AccountsPage() {
 
   const handleDeleteAccount = async (email: string) => {
     try {
-      await apiFetch(`/api/accounts/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      await apiFetch(`/api/accounts/${encodeURIComponent(email)}`, {
+        method: "DELETE",
+      });
       setDeleteConfirm(null);
       await fetchEnrichedAccounts();
     } catch (error) {
-      console.error('Failed to delete account:', error);
+      console.error("Failed to delete account:", error);
     }
   };
 
   const handleBulkDelete = async () => {
     try {
-      await apiFetch('/api/accounts', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: selectedAccounts })
+      await apiFetch("/api/accounts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: selectedAccounts }),
       });
       clearSelection();
       setBulkDeleteConfirm(false);
       await fetchEnrichedAccounts();
     } catch (error) {
-      console.error('Failed to delete accounts:', error);
+      console.error("Failed to delete accounts:", error);
     }
   };
 
   const handleBulkRefresh = async () => {
     setLoading(true);
     try {
-      await apiFetch('/api/accounts/quota/refresh', { method: 'POST' });
+      await apiFetch("/api/accounts/quota/refresh", { method: "POST" });
       await fetchEnrichedAccounts();
     } finally {
       setLoading(false);
@@ -649,19 +687,21 @@ export function AccountsPage() {
 
   const handleExport = async () => {
     try {
-      const res = await apiFetch('/api/accounts/export');
+      const res = await apiFetch("/api/accounts/export");
       const data = await res.json();
       if (data.success) {
-        const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(data.data, null, 2)], {
+          type: "application/json",
+        });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = `antigravity-accounts-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `antigravity-accounts-${new Date().toISOString().split("T")[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error("Export failed:", error);
     }
   };
 
@@ -725,7 +765,8 @@ export function AccountsPage() {
       {selectedAccounts.length > 0 && (
         <div className="glass-card p-3 flex items-center justify-between bg-blue-500/5 border-blue-500/20">
           <span className="text-sm text-text-primary">
-            <strong>{selectedAccounts.length}</strong> account{selectedAccounts.length > 1 ? 's' : ''} selected
+            <strong>{selectedAccounts.length}</strong> account
+            {selectedAccounts.length > 1 ? "s" : ""} selected
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -733,7 +774,9 @@ export function AccountsPage() {
               disabled={loading}
               className="btn-secondary flex items-center gap-1.5"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+              />
               Refresh
             </button>
             <button
@@ -787,7 +830,7 @@ export function AccountsPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedAccounts.map(account => (
+              {sortedAccounts.map((account) => (
                 <AccountRow
                   key={account.email}
                   account={account}
@@ -804,7 +847,7 @@ export function AccountsPage() {
               {filteredAccounts.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-text-muted">
-                    {loading ? 'Loading accounts...' : 'No accounts found'}
+                    {loading ? "Loading accounts..." : "No accounts found"}
                   </td>
                 </tr>
               )}
@@ -827,10 +870,13 @@ export function AccountsPage() {
       {/* Delete Confirmation Dialog */}
       {deleteConfirm && (
         <div className="dialog-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="dialog-content" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-text-primary mb-2">Delete Account</h3>
+          <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-2">
+              Delete Account
+            </h3>
             <p className="text-sm text-text-secondary mb-4">
-              Are you sure you want to delete <strong>{deleteConfirm}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{deleteConfirm}</strong>?
+              This action cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -852,11 +898,19 @@ export function AccountsPage() {
 
       {/* Bulk Delete Confirmation Dialog */}
       {bulkDeleteConfirm && (
-        <div className="dialog-overlay" onClick={() => setBulkDeleteConfirm(false)}>
-          <div className="dialog-content" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-text-primary mb-2">Delete {selectedAccounts.length} Accounts</h3>
+        <div
+          className="dialog-overlay"
+          onClick={() => setBulkDeleteConfirm(false)}
+        >
+          <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-2">
+              Delete {selectedAccounts.length} Accounts
+            </h3>
             <p className="text-sm text-text-secondary mb-4">
-              Are you sure you want to delete <strong>{selectedAccounts.length}</strong> account{selectedAccounts.length > 1 ? 's' : ''}? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <strong>{selectedAccounts.length}</strong> account
+              {selectedAccounts.length > 1 ? "s" : ""}? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -865,10 +919,7 @@ export function AccountsPage() {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleBulkDelete}
-                className="btn-danger"
-              >
+              <button onClick={handleBulkDelete} className="btn-danger">
                 Delete All
               </button>
             </div>
@@ -896,49 +947,49 @@ interface AddAccountDialogProps {
 }
 
 function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
-  const [email, setEmail] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!email.trim()) {
-      setError('Email is required');
+      setError("Email is required");
       return;
     }
     if (!refreshToken.trim()) {
-      setError('Refresh token is required');
+      setError("Refresh token is required");
       return;
     }
-    if (!email.includes('@')) {
-      setError('Invalid email address');
+    if (!email.includes("@")) {
+      setError("Invalid email address");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await apiFetch('/api/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
           refreshToken: refreshToken.trim(),
-          projectId: projectId.trim() || undefined
-        })
+          projectId: projectId.trim() || undefined,
+        }),
       });
       const data = await res.json();
 
       if (data.success) {
         onSuccess();
       } else {
-        setError(data.error || 'Failed to add account');
+        setError(data.error || "Failed to add account");
       }
     } catch (err) {
-      setError('Failed to add account');
+      setError("Failed to add account");
     } finally {
       setLoading(false);
     }
@@ -947,7 +998,7 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
   const handleGoogleAuth = async () => {
     try {
       setLoading(true);
-      const res = await apiFetch('/api/auth/google/url');
+      const res = await apiFetch("/api/auth/google/url");
       const data = await res.json();
 
       if (data.success && data.url) {
@@ -958,8 +1009,8 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
 
         const popup = window.open(
           data.url,
-          'google_auth',
-          `width=${width},height=${height},top=${top},left=${left}`
+          "google_auth",
+          `width=${width},height=${height},top=${top},left=${left}`,
         );
 
         if (popup) {
@@ -971,20 +1022,25 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
             }
           }, 500);
         } else {
-          setError('Popup blocked. Please allow popups.');
+          setError("Popup blocked. Please allow popups.");
           setLoading(false);
         }
       }
     } catch (e) {
-      setError('Failed to start Google Auth');
+      setError("Failed to start Google Auth");
       setLoading(false);
     }
   };
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog-content max-w-md" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-text-primary mb-4">Add Account</h3>
+      <div
+        className="dialog-content max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold text-text-primary mb-4">
+          Add Account
+        </h3>
 
         <div className="mb-6">
           <button
@@ -994,10 +1050,22 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
             className="w-full flex items-center justify-center gap-2 bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 font-medium py-2.5 px-4 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
             </svg>
             Sign in with Google
           </button>
@@ -1007,7 +1075,9 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
               <div className="w-full border-t border-white/10"></div>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-[#1e293b] px-2 text-text-muted">Or enter manually</span>
+              <span className="bg-[#1e293b] px-2 text-text-muted">
+                Or enter manually
+              </span>
             </div>
           </div>
         </div>
@@ -1045,7 +1115,8 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
 
           <div>
             <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">
-              Project ID <span className="text-text-muted font-normal">(optional)</span>
+              Project ID{" "}
+              <span className="text-text-muted font-normal">(optional)</span>
             </label>
             <input
               type="text"
@@ -1063,19 +1134,11 @@ function AddAccountDialog({ onClose, onSuccess }: AddAccountDialogProps) {
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary"
-            >
+            <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary"
-            >
-              {loading ? 'Adding...' : 'Add Account'}
+            <button type="submit" disabled={loading} className="btn-primary">
+              {loading ? "Adding..." : "Add Account"}
             </button>
           </div>
         </form>
