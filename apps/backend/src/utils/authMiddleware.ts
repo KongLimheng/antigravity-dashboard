@@ -40,7 +40,7 @@ function extractTokenFromHeader(req: Request): string | undefined {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  if (!isAuthEnabled()) {
+  if (!isAuthEnabled() || req.path === '/health' || req.path === '/api/health') {
     next();
     return;
   }

@@ -75,7 +75,7 @@ export function initializeProxyRoutes(
   return apiRouter;
 }
 
-apiRouter.use((req: Request, res: Response, next: NextFunction) => {
+apiRouter.use('/v1', (req: Request, res: Response, next: NextFunction) => {
   if (!proxyService) {
     res.status(503).json({ error: 'Proxy service not initialized' });
     return;
@@ -142,7 +142,7 @@ apiRouter.post('/v1/chat/completions', async (req: Request, res: Response) => {
   }
 });
 
-managementRouter.use(requireAuth);
+managementRouter.use('/api/proxy', requireAuth);
 
 managementRouter.get('/api/proxy/status', (req: Request, res: Response) => {
   if (!proxyService) {

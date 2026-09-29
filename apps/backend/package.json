@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc -w",
+    "watch": "tsc -w --preserveWatchOutput",
+    "dev": "node --watch-path=dist dist/server.js",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
   },

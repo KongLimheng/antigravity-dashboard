@@ -22,13 +22,13 @@ import {
   proxyManagementRouter,
 } from "./routes/proxy";
 import { getAccountsService } from "./services/accountsFile";
-import { getCliKeyringService } from "./services/cliKeyringService";
-import { getCliAutoSwitchService } from "./services/cliAutoSwitchService";
 import type {
   ProxyLogger,
   ProxyRequestLog,
   RateLimitNotifier,
 } from "./services/apiProxy/index.js";
+import { getCliAutoSwitchService } from "./services/cliAutoSwitchService";
+import { getCliKeyringService } from "./services/cliKeyringService";
 import { getFileLogger } from "./services/fileLogger";
 import { getLanguageServerService } from "./services/languageServer";
 import { getQuotaService } from "./services/quotaService";
@@ -110,27 +110,37 @@ const languageServerService = getLanguageServerService(90000);
 const quotaStrategyManager = getQuotaStrategyManager();
 const fileLogger = getFileLogger(7); // 7 days retention
 const cliKeyringService = getCliKeyringService();
-const cliAutoSwitchService = getCliAutoSwitchService(accountsService, quotaService, wsManager);
+const cliAutoSwitchService = getCliAutoSwitchService(
+  accountsService,
+  quotaService,
+  wsManager,
+);
 
 // Sync initial active CLI account into accountsService
-cliKeyringService.getActiveCliAccount().then(info => {
-  if (info.email) {
-    accountsService.setActiveCliEmail(info.email);
-  }
-  return null;
-}).catch(err => {
-  console.warn('[Server] Error getting active CLI account:', err);
-});
+cliKeyringService
+  .getActiveCliAccount()
+  .then((info) => {
+    if (info.email) {
+      accountsService.setActiveCliEmail(info.email);
+    }
+    return null;
+  })
+  .catch((err) => {
+    console.warn("[Server] Error getting active CLI account:", err);
+  });
 
 // Broadcast CLI account switches to clients
-cliKeyringService.on('cli_switched', ({ fromEmail, toEmail, timestamp, reason }) => {
-  accountsService.setActiveCliEmail(toEmail);
-  wsManager.broadcast({
-    type: 'cli_account_switched',
-    data: { fromEmail, toEmail, timestamp, reason, success: true },
-    timestamp,
-  });
-});
+cliKeyringService.on(
+  "cli_switched",
+  ({ fromEmail, toEmail, timestamp, reason }) => {
+    accountsService.setActiveCliEmail(toEmail);
+    wsManager.broadcast({
+      type: "cli_account_switched",
+      data: { fromEmail, toEmail, timestamp, reason, success: true },
+      timestamp,
+    });
+  },
+);
 
 const proxyLogger: ProxyLogger = {
   logProxyRequest: (log: ProxyRequestLog) => {
@@ -172,9 +182,11 @@ const rateLimitNotifier: RateLimitNotifier = {
     accountsService.markAccountRateLimited(email, family, resetTime?.getTime());
 
     // Trigger CLI auto-switch if active CLI account was rate-limited
-    cliAutoSwitchService.handleRateLimit(email, model, resetTime).catch(err => {
-      console.warn('[Server] CLI auto-switch error on rate limit:', err);
-    });
+    cliAutoSwitchService
+      .handleRateLimit(email, model, resetTime)
+      .catch((err) => {
+        console.warn("[Server] CLI auto-switch error on rate limit:", err);
+      });
   },
 };
 
@@ -191,7 +203,7 @@ function getRawAccountsForQuota(): Array<{
   try {
     const rawData = accountsService.getRawData()?.accounts || [];
     if (rawData.length > 0) {
-      return rawData.map(acc => ({
+      return rawData.map((acc) => ({
         email: acc.email,
         refreshToken: acc.refreshToken,
         projectId: acc.projectId || acc.managedProjectId,
@@ -788,7 +800,8 @@ app.delete("/api/accounts", async (req, res) => {
 app.post("/api/accounts/switch/:email", async (req, res) => {
   try {
     const email = decodeURIComponent(req.params.email);
-    const syncCli = req.query.syncCli !== "false" && req.body?.syncCli !== false;
+    const syncCli =
+      req.query.syncCli !== "false" && req.body?.syncCli !== false;
 
     if (syncCli) {
       const switchResult = await cliAutoSwitchService.executeSwitch(
@@ -796,7 +809,10 @@ app.post("/api/accounts/switch/:email", async (req, res) => {
         "Switched via dashboard accounts page",
       );
       if (!switchResult.switched && switchResult.error) {
-        console.warn("[Server] CLI sync error during account switch:", switchResult.error);
+        console.warn(
+          "[Server] CLI sync error during account switch:",
+          switchResult.error,
+        );
         await accountsService.setActiveAccount(email);
       }
     } else {
