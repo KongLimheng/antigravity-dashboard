@@ -31,6 +31,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     setLastUpdate,
     addNotification,
     preferences,
+    setCliStatus,
   } = useDashboardStore();
 
   const handleAccountsUpdate = useDebouncedCallback((diffs: AccountDiff[]) => {
@@ -97,6 +98,43 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           }
           setLastUpdate(message.timestamp);
           break;
+
+        case 'cli_account_switched':
+          if (message.data) {
+            const { toEmail, fromEmail, reason } = message.data;
+            const currentAccounts = useDashboardStore.getState().localAccounts;
+            const updated = currentAccounts.map(a => ({
+              ...a,
+              isActiveInCli: typeof toEmail === 'string' && a.email.toLowerCase() === toEmail.toLowerCase()
+            }));
+            setLocalAccounts(updated);
+
+            addNotification({
+              type: 'info',
+              title: 'Antigravity CLI Switched',
+              message: fromEmail
+                ? `Switched CLI to ${toEmail}${reason ? ` (${reason})` : ''}`
+                : `Active CLI account set to ${toEmail}`,
+            });
+          }
+          setLastUpdate(message.timestamp);
+          break;
+
+        case 'cli_status_change':
+          if (message.data) {
+            setCliStatus(message.data);
+            if (message.data.activeEmail && typeof message.data.activeEmail === 'string') {
+              const active = message.data.activeEmail;
+              const currentAccounts = useDashboardStore.getState().localAccounts;
+              const updated = currentAccounts.map(a => ({
+                ...a,
+                isActiveInCli: a.email.toLowerCase() === active.toLowerCase()
+              }));
+              setLocalAccounts(updated);
+            }
+          }
+          setLastUpdate(message.timestamp);
+          break;
           
         case 'heartbeat':
           break;
@@ -107,7 +145,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     } catch (e) {
       console.error('[useWebSocket] Failed to parse message:', e);
     }
-  }, [setLocalAccounts, setAccountsStats, setLastUpdate, handleAccountsUpdate, addNotification, preferences]);
+  }, [setLocalAccounts, setAccountsStats, setCliStatus, setLastUpdate, handleAccountsUpdate, addNotification, preferences]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

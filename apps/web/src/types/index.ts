@@ -51,6 +51,7 @@ export interface LocalAccount {
   burnRate1h?: number;
   subscriptionTier?: SubscriptionTier;
   modelQuotas?: ModelQuotaDisplay[];
+  isActiveInCli?: boolean;
 }
 
 export interface ModelQuotaInfo {
@@ -127,7 +128,9 @@ export type WSMessageType =
   | 'stats_update'
   | 'new_call'
   | 'heartbeat'
-  | 'config_update';
+  | 'config_update'
+  | 'cli_account_switched'
+  | 'cli_status_change';
 
 export interface WSMessage {
   type: WSMessageType;
@@ -449,3 +452,51 @@ export interface AccurateBurnRate {
   dataPoints: number;         // number of snapshots used
   confidence: 'high' | 'medium' | 'low';
 }
+
+export type RotationStrategy = 
+  | 'round_robin'
+  | 'least_recently_used'
+  | 'highest_quota'
+  | 'random'
+  | 'weighted'
+  | 'sticky';
+
+/**
+ * Antigravity CLI auto-switch configuration
+ */
+export interface CliAutoSwitchConfig {
+  enabled: boolean;
+  strategy: RotationStrategy;
+  triggerOnRateLimit: boolean;
+  triggerOnLowQuota: boolean;
+  lowQuotaThreshold: number; // percentage (e.g. 5)
+  checkIntervalMs?: number;
+}
+
+export const DEFAULT_CLI_AUTO_SWITCH_CONFIG: CliAutoSwitchConfig = {
+  enabled: true,
+  strategy: 'highest_quota',
+  triggerOnRateLimit: true,
+  triggerOnLowQuota: true,
+  lowQuotaThreshold: 5,
+  checkIntervalMs: 30000,
+};
+
+export interface CliSwitchEvent {
+  timestamp: number;
+  fromEmail: string | null;
+  toEmail: string;
+  reason: string;
+  strategy: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface CliStatus {
+  activeEmail: string | null;
+  keyringSynced: boolean;
+  tokenExpiry: string | null;
+  autoSwitch: CliAutoSwitchConfig;
+  recentSwitches: CliSwitchEvent[];
+}
+

@@ -24,12 +24,14 @@ import { DEFAULT_ROTATION_CONFIG } from '../types';
 
 const ACCOUNTS_FILE_PATH = join(homedir(), '.config', 'opencode', 'antigravity-accounts.json');
 const CONFIG_FILE_PATH = join(homedir(), '.config', 'opencode', 'antigravity.json');
+const PROFILES_FILE_PATH = join(homedir(), '.antigravity-profiles', 'profiles.json');
 
 export class AccountsFileService extends EventEmitter {
   private watcher: FSWatcher | null = null;
   private lastData: RawAccountsFile | null = null;
   private processedAccounts: LocalAccount[] = [];
   private updateInterval: NodeJS.Timeout | null = null;
+  private activeCliEmail: string | null = null;
   private rotationConfig: RotationConfig = { ...DEFAULT_ROTATION_CONFIG };
   private roundRobinIndex: Map<string, number> = new Map();
   private rotationStats: RotationStats = {
@@ -68,12 +70,13 @@ export class AccountsFileService extends EventEmitter {
   }
 
   private setupFileWatcher(): void {
-    if (!existsSync(ACCOUNTS_FILE_PATH)) {
-      console.warn(`Accounts file not found: ${ACCOUNTS_FILE_PATH}`);
+    const watchPaths = [ACCOUNTS_FILE_PATH, PROFILES_FILE_PATH].filter(p => existsSync(p));
+    if (watchPaths.length === 0) {
+      console.warn(`[AccountsFileService] Watching for accounts: neither accounts file nor profiles file found initially`);
       return;
     }
 
-    this.watcher = watch(ACCOUNTS_FILE_PATH, {
+    this.watcher = watch(watchPaths, {
       persistent: true,
       ignoreInitial: true,
       awaitWriteFinish: {
@@ -82,14 +85,25 @@ export class AccountsFileService extends EventEmitter {
       }
     });
 
-    this.watcher.on('change', () => {
-      console.log('[AccountsFileService] File changed, reloading...');
+    this.watcher.on('change', (changedPath) => {
+      console.log(`[AccountsFileService] File changed (${changedPath}), reloading...`);
       this.loadAccountsFile();
     });
 
     this.watcher.on('error', (error) => {
       console.error('[AccountsFileService] Watcher error:', error);
     });
+  }
+
+  public setActiveCliEmail(email: string | null): void {
+    if (this.activeCliEmail !== email) {
+      this.activeCliEmail = email;
+      this.loadAccountsFile();
+    }
+  }
+
+  public getActiveCliEmail(): string | null {
+    return this.activeCliEmail;
   }
 
   private startRateLimitUpdater(): void {
@@ -99,6 +113,7 @@ export class AccountsFileService extends EventEmitter {
         this.emit('rate_limits_updated', this.processedAccounts);
       }
     }, 15000);
+    this.updateInterval.unref();
   }
 
   private updateRateLimitTimers(): boolean {
@@ -140,27 +155,120 @@ export class AccountsFileService extends EventEmitter {
     return hasChanges;
   }
 
+  private discoverAndMergeAccounts(): RawAccountsFile {
+    let data: RawAccountsFile = {
+      version: 1,
+      accounts: [],
+      activeIndex: 0,
+    };
+
+    if (existsSync(ACCOUNTS_FILE_PATH)) {
+      try {
+        const content = readFileSync(ACCOUNTS_FILE_PATH, 'utf-8');
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed.accounts)) {
+          data = parsed;
+        }
+      } catch (e) {
+        console.warn('[AccountsFileService] Error reading accounts file:', e);
+      }
+    }
+
+    const home = homedir();
+    let discoveredAny = false;
+
+    // 1. Discover from ~/.antigravity-profiles
+    const profilesJsonPath = join(home, '.antigravity-profiles', 'profiles.json');
+    if (existsSync(profilesJsonPath)) {
+      try {
+        const profData = JSON.parse(readFileSync(profilesJsonPath, 'utf-8'));
+        if (Array.isArray(profData.profiles)) {
+          for (const prof of profData.profiles) {
+            const credPath = join(home, '.antigravity-profiles', prof.id, 'credentials.json');
+            if (existsSync(credPath)) {
+              try {
+                const cred = JSON.parse(readFileSync(credPath, 'utf-8'));
+                const tokenObj = cred.token || {};
+                const refreshToken = tokenObj.refresh_token || cred.refresh_token;
+                const email = prof.email || cred.email;
+                if (email && refreshToken) {
+                  const existing = data.accounts.find(a => a.email.toLowerCase() === email.toLowerCase());
+                  if (!existing) {
+                    data.accounts.push({
+                      email,
+                      refreshToken,
+                      projectId: cred.project_id || cred.projectId,
+                      addedAt: prof.createdAt || Date.now(),
+                      lastUsed: prof.lastUsed || Date.now(),
+                    });
+                    discoveredAny = true;
+                  } else if (!existing.refreshToken && refreshToken) {
+                    existing.refreshToken = refreshToken;
+                    discoveredAny = true;
+                  }
+                }
+              } catch {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // 2. Discover from ~/.config/antigravity-switcher
+    const switcherProfilesPath = join(home, '.config', 'antigravity-switcher', 'profiles.json');
+    if (existsSync(switcherProfilesPath)) {
+      try {
+        const switchData = JSON.parse(readFileSync(switcherProfilesPath, 'utf-8'));
+        if (Array.isArray(switchData.profiles)) {
+          for (const prof of switchData.profiles) {
+            const credPath = join(home, '.config', 'antigravity-switcher', 'credentials', `${prof.id}.json`);
+            if (existsSync(credPath)) {
+              try {
+                const cred = JSON.parse(readFileSync(credPath, 'utf-8'));
+                const tokenObj = cred.token || {};
+                const refreshToken = tokenObj.refresh_token || cred.refresh_token;
+                const email = prof.email || cred.email;
+                if (email && refreshToken) {
+                  const existing = data.accounts.find(a => a.email.toLowerCase() === email.toLowerCase());
+                  if (!existing) {
+                    data.accounts.push({
+                      email,
+                      refreshToken,
+                      projectId: cred.project_id || cred.projectId,
+                      addedAt: prof.created_at ? prof.created_at * 1000 : Date.now(),
+                      lastUsed: prof.last_used ? prof.last_used * 1000 : Date.now(),
+                    });
+                    discoveredAny = true;
+                  }
+                }
+              } catch {
+                // Ignore
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // Save unified accounts to ~/.config/opencode/antigravity-accounts.json if new accounts were found or file missing
+    if (discoveredAny || !existsSync(ACCOUNTS_FILE_PATH)) {
+      if (data.accounts.length > 0) {
+        this.saveAccountsFile(data).catch(() => {});
+      }
+    }
+
+    return data;
+  }
+
   private loadAccountsFile(): void {
     try {
-      if (!existsSync(ACCOUNTS_FILE_PATH)) {
-        console.warn('[AccountsFileService] Accounts file does not exist');
-        this.processedAccounts = [];
-        this.lastData = null;
-        this.emit('accounts_loaded', []);
-        return;
-      }
-
-      const content = readFileSync(ACCOUNTS_FILE_PATH, 'utf-8');
-      const data: RawAccountsFile = JSON.parse(content);
-      
-      // Validate accounts array exists and is an array
-      if (!Array.isArray(data.accounts)) {
-        console.warn('[AccountsFileService] Malformed accounts file: accounts is not an array');
-        this.processedAccounts = [];
-        this.lastData = { ...data, accounts: [] };
-        this.emit('accounts_loaded', []);
-        return;
-      }
+      const data = this.discoverAndMergeAccounts();
       
       const previousAccounts = [...this.processedAccounts];
       this.processedAccounts = this.processAccounts(data);
@@ -202,6 +310,10 @@ export class AccountsFileService extends EventEmitter {
         isExpired: geminiResetTime <= now
       } : undefined;
 
+      const isCliActive = this.activeCliEmail
+        ? raw.email.toLowerCase() === this.activeCliEmail.toLowerCase()
+        : index === data.activeIndex;
+
       const account: LocalAccount = {
         email: raw.email,
         projectId: raw.projectId,
@@ -209,6 +321,7 @@ export class AccountsFileService extends EventEmitter {
         addedAt: raw.addedAt,
         lastUsed: raw.lastUsed,
         isActive: index === data.activeIndex,
+        isActiveInCli: isCliActive,
         activeForClaude: index === (data.activeIndexByFamily?.claude ?? data.activeIndex),
         activeForGemini: index === (data.activeIndexByFamily?.gemini ?? data.activeIndex),
         status: 'available',
@@ -448,7 +561,7 @@ export class AccountsFileService extends EventEmitter {
   /**
    * Set an account as active (for both families)
    */
-  async setActiveAccount(email: string): Promise<void> {
+  async setActiveAccount(email: string, syncCliEmail: boolean = true): Promise<void> {
     if (!this.lastData) {
       throw new Error('No accounts data loaded');
     }
@@ -473,6 +586,10 @@ export class AccountsFileService extends EventEmitter {
 
     // Update lastUsed
     data.accounts[index].lastUsed = Date.now();
+
+    if (syncCliEmail) {
+      this.activeCliEmail = email;
+    }
 
     await this.saveAccountsFile(data);
     this.loadAccountsFile();

@@ -3,12 +3,12 @@ import { apiFetch } from '../utils/apiFetch';
 import { useDashboardStore } from '../stores/useDashboardStore';
 import {
   Search, Trash2, RefreshCw, Download, Plus, Check, X,
-  Mail, Clock
+  Mail, Clock, Terminal, Zap, ShieldCheck
 } from 'lucide-react';
 import { SubscriptionBadge, CurrentBadge } from './SubscriptionBadge';
 import { QuotaBadge } from './QuotaPill';
 import { formatTimeUntilReset } from '../hooks/useQuotaWindow';
-import type { LocalAccount, AccountFilterType } from '../types';
+import type { LocalAccount, AccountFilterType, CliStatus, RotationStrategy } from '../types';
 
 interface FilterCounts {
   all: number;
@@ -100,9 +100,11 @@ interface AccountRowProps {
   selected: boolean;
   onSelect: () => void;
   onSetActive: () => void;
+  onSwitchCli: () => void;
   onRefresh: () => void;
   onDelete: () => void;
   loading?: boolean;
+  switchingCli?: boolean;
 }
 
 function AccountRow({
@@ -110,9 +112,11 @@ function AccountRow({
   selected,
   onSelect,
   onSetActive,
+  onSwitchCli,
   onRefresh,
   onDelete,
-  loading
+  loading,
+  switchingCli
 }: AccountRowProps) {
   const modelQuotas = account.modelQuotas || [];
   const geminiPro = modelQuotas.find(m => m.id === 'gemini-3-pro');
@@ -142,6 +146,14 @@ function AccountRow({
             {account.email}
           </span>
           {account.isActive && <CurrentBadge />}
+          {account.isActiveInCli && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1"
+              title="Currently active in Antigravity CLI"
+            >
+              <Terminal className="w-2.5 h-2.5" /> CLI Active
+            </span>
+          )}
           {account.subscriptionTier && (
             <SubscriptionBadge tier={account.subscriptionTier} />
           )}
@@ -220,9 +232,19 @@ function AccountRow({
             <button
               onClick={onSetActive}
               className="p-1.5 text-text-muted hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
-              title="Set as Active"
+              title="Set as Active (Switches Dashboard & CLI)"
             >
               <Check className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {!account.isActiveInCli && (
+            <button
+              onClick={onSwitchCli}
+              disabled={switchingCli}
+              className="p-1.5 text-text-muted hover:text-purple-400 hover:bg-purple-500/10 rounded transition-colors disabled:opacity-50"
+              title="Switch Antigravity CLI to this account (without logout/relogin)"
+            >
+              <Terminal className={`w-3.5 h-3.5 ${switchingCli ? 'animate-pulse text-purple-400' : ''}`} />
             </button>
           )}
           <button
@@ -246,6 +268,115 @@ function AccountRow({
   );
 }
 
+interface CliAutoSwitchBannerProps {
+  cliStatus: CliStatus | null;
+  onToggleAutoSwitch: (enabled: boolean) => void;
+  onChangeStrategy: (strategy: RotationStrategy) => void;
+  onTriggerAutoSwitch: () => void;
+  onTestKeyring: () => void;
+  loading?: boolean;
+}
+
+function CliAutoSwitchBanner({
+  cliStatus,
+  onToggleAutoSwitch,
+  onChangeStrategy,
+  onTriggerAutoSwitch,
+  onTestKeyring,
+  loading
+}: CliAutoSwitchBannerProps) {
+  const isEnabled = cliStatus?.autoSwitch?.enabled ?? true;
+  const activeEmail = cliStatus?.activeEmail;
+
+  return (
+    <div className="bg-surface-elevated/70 border border-purple-500/20 rounded-xl p-4 shadow-sm backdrop-blur-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Left Side: Title and Active Account */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              <Terminal className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-semibold text-text-primary">
+              Antigravity CLI (agy) Auto-Switch
+            </h2>
+            {activeEmail ? (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-mono bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {activeEmail}
+              </span>
+            ) : (
+              <span className="text-xs text-text-muted italic">No active CLI account</span>
+            )}
+            {cliStatus?.keyringSynced && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Keyring Synced
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-text-muted">
+            Seamless zero-friction account switching for <code className="text-purple-300">agy</code> in terminal. Auto-failovers on rate limits (429) or low quota without logout and relogin.
+          </p>
+        </div>
+
+        {/* Right Side: Controls */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Strategy Selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-text-muted">Strategy:</span>
+            <select
+              value={cliStatus?.autoSwitch?.strategy || 'highest_quota'}
+              onChange={(e) => onChangeStrategy(e.target.value as RotationStrategy)}
+              disabled={loading}
+              className="bg-surface border border-white/10 text-xs text-text-primary rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-500/50"
+            >
+              <option value="highest_quota">Highest Quota</option>
+              <option value="round_robin">Round Robin</option>
+              <option value="least_recently_used">Least Recently Used</option>
+            </select>
+          </div>
+
+          {/* Auto-Switch Toggle */}
+          <button
+            onClick={() => onToggleAutoSwitch(!isEnabled)}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              isEnabled
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                : 'bg-white/5 text-text-muted border-white/10 hover:bg-white/10 hover:text-text-primary'
+            }`}
+            title={isEnabled ? 'Click to disable auto-switch' : 'Click to enable auto-switch'}
+          >
+            <Zap className={`w-3.5 h-3.5 ${isEnabled ? 'text-emerald-400' : 'text-text-muted'}`} />
+            Auto-Switch: {isEnabled ? 'ON' : 'OFF'}
+          </button>
+
+          {/* Trigger Auto-Switch Now */}
+          <button
+            onClick={onTriggerAutoSwitch}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+            title="Evaluate and switch CLI to next best account now"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+            Switch Now
+          </button>
+
+          {/* Test Keyring */}
+          <button
+            onClick={onTestKeyring}
+            disabled={loading}
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-white/5 border border-white/10 rounded-lg transition-colors"
+            title="Test Keyring Connection"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AccountsPage() {
   const {
     selectedAccounts,
@@ -265,9 +396,109 @@ export function AccountsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
+  // Antigravity CLI state
+  const [cliStatus, setCliStatus] = useState<CliStatus | null>(null);
+  const [switchingCli, setSwitchingCli] = useState<string | null>(null);
+  const [cliActionLoading, setCliActionLoading] = useState(false);
+
+  const fetchCliStatus = async () => {
+    try {
+      const res = await apiFetch('/api/cli/status');
+      const data = await res.json();
+      if (data.success) {
+        setCliStatus(data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch CLI status:', e);
+    }
+  };
+
   useEffect(() => {
     fetchEnrichedAccounts();
+    fetchCliStatus();
   }, []);
+
+  const handleToggleAutoSwitch = async (enabled: boolean) => {
+    setCliActionLoading(true);
+    try {
+      const res = await apiFetch('/api/cli/auto-switch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchCliStatus();
+      }
+    } finally {
+      setCliActionLoading(false);
+    }
+  };
+
+  const handleChangeStrategy = async (strategy: RotationStrategy) => {
+    setCliActionLoading(true);
+    try {
+      const res = await apiFetch('/api/cli/auto-switch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchCliStatus();
+      }
+    } finally {
+      setCliActionLoading(false);
+    }
+  };
+
+  const handleTriggerAutoSwitch = async () => {
+    setCliActionLoading(true);
+    try {
+      await apiFetch('/api/cli/auto-switch/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Triggered from Accounts Page' }),
+      });
+      await fetchEnrichedAccounts();
+      await fetchCliStatus();
+    } finally {
+      setCliActionLoading(false);
+    }
+  };
+
+  const handleTestKeyring = async () => {
+    setCliActionLoading(true);
+    try {
+      const res = await apiFetch('/api/cli/test-keyring', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Keyring Status: ${data.data.message} (${data.data.platform})`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Keyring Test Error: ${msg}`);
+    } finally {
+      setCliActionLoading(false);
+    }
+  };
+
+  const handleSwitchCli = async (email: string) => {
+    setSwitchingCli(email);
+    try {
+      await apiFetch(`/api/cli/switch/${encodeURIComponent(email)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Manual switch from Accounts Page' }),
+      });
+      await fetchEnrichedAccounts();
+      await fetchCliStatus();
+    } catch (error) {
+      console.error('Failed to switch CLI account:', error);
+    } finally {
+      setSwitchingCli(null);
+    }
+  };
 
   const fetchEnrichedAccounts = async () => {
     setLoading(true);
@@ -456,6 +687,16 @@ export function AccountsPage() {
         </div>
       </div>
 
+      {/* CLI Auto-Switch Status & Controls */}
+      <CliAutoSwitchBanner
+        cliStatus={cliStatus}
+        onToggleAutoSwitch={handleToggleAutoSwitch}
+        onChangeStrategy={handleChangeStrategy}
+        onTriggerAutoSwitch={handleTriggerAutoSwitch}
+        onTestKeyring={handleTestKeyring}
+        loading={cliActionLoading}
+      />
+
       {/* Search & Filters */}
       <div className="glass-card p-4">
         <div className="flex flex-col md:flex-row gap-4">
@@ -553,6 +794,8 @@ export function AccountsPage() {
                   selected={selectedAccounts.includes(account.email)}
                   onSelect={() => toggleAccountSelection(account.email)}
                   onSetActive={() => handleSetActive(account.email)}
+                  onSwitchCli={() => handleSwitchCli(account.email)}
+                  switchingCli={switchingCli === account.email}
                   onRefresh={() => handleRefreshAccount(account.email)}
                   onDelete={() => setDeleteConfirm(account.email)}
                   loading={refreshingAccount === account.email}

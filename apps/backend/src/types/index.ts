@@ -53,6 +53,7 @@ export interface LocalAccount {
   };
   subscriptionTier?: SubscriptionTier;
   modelQuotas?: ModelQuotaDisplay[];
+  isActiveInCli?: boolean;
 }
 
 export type AccountStatus = 
@@ -75,7 +76,9 @@ export type WSMessageType =
   | 'stats_update'
   | 'new_call'
   | 'heartbeat'
-  | 'config_update';
+  | 'config_update'
+  | 'cli_account_switched'
+  | 'cli_status_change';
 
 export interface WSMessage {
   type: WSMessageType;
@@ -419,4 +422,43 @@ export interface RotationStats {
     family: 'claude' | 'gemini';
     reason: string;
   } | null;
+}
+
+/**
+ * Antigravity CLI auto-switch configuration
+ */
+export interface CliAutoSwitchConfig {
+  enabled: boolean;
+  strategy: RotationStrategy;
+  triggerOnRateLimit: boolean;
+  triggerOnLowQuota: boolean;
+  lowQuotaThreshold: number; // percentage (e.g. 5)
+  checkIntervalMs?: number;
+}
+
+export const DEFAULT_CLI_AUTO_SWITCH_CONFIG: CliAutoSwitchConfig = {
+  enabled: true,
+  strategy: 'highest_quota',
+  triggerOnRateLimit: true,
+  triggerOnLowQuota: true,
+  lowQuotaThreshold: 5,
+  checkIntervalMs: 30000,
+};
+
+export interface CliSwitchEvent {
+  timestamp: number;
+  fromEmail: string | null;
+  toEmail: string;
+  reason: string;
+  strategy: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface CliStatus {
+  activeEmail: string | null;
+  keyringSynced: boolean;
+  tokenExpiry: string | null;
+  autoSwitch: CliAutoSwitchConfig;
+  recentSwitches: CliSwitchEvent[];
 }

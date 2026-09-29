@@ -10,7 +10,8 @@ import type {
   AccountStats,
   ModelStats,
   HourlyStats,
-  ApiCall
+  ApiCall,
+  CliStatus,
 } from '../types';
 
 interface DashboardState {
@@ -21,6 +22,7 @@ interface DashboardState {
   recentCalls: ApiCall[];
   
   accountsStats: DashboardStats;
+  cliStatus: CliStatus | null;
   
   wsConnected: boolean;
   lastUpdate: number;
@@ -49,6 +51,7 @@ interface DashboardState {
   setRecentCalls: (calls: ApiCall[]) => void;
   
   setAccountsStats: (stats: DashboardStats) => void;
+  setCliStatus: (status: CliStatus | null) => void;
   
   setWsConnected: (connected: boolean) => void;
   setLastUpdate: (timestamp: number) => void;
@@ -110,6 +113,7 @@ export const useDashboardStore = create<DashboardState>()(
         activeAccount: null,
         lastUpdate: 0,
       },
+      cliStatus: null,
       
       wsConnected: false,
       lastUpdate: 0,
@@ -148,6 +152,7 @@ export const useDashboardStore = create<DashboardState>()(
       setRecentCalls: (calls) => set({ recentCalls: calls }),
       
       setAccountsStats: (stats) => set({ accountsStats: stats }),
+      setCliStatus: (status) => set({ cliStatus: status }),
       
       setWsConnected: (connected) => set({ wsConnected: connected }),
       setLastUpdate: (timestamp) => set({ lastUpdate: timestamp }),
